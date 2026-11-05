@@ -1,0 +1,5 @@
+test/out*/
+*.wasm
+__pycache__/
+Glance-preview.png
+Glance-telefoon.png
