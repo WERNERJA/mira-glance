@@ -17,7 +17,7 @@ Bijwerken: Glance-kaart lang indrukken → Edit App → Upload → Save → Upda
 
 ## Structuur
 - `Glance/glance.rs` – bril-app (app-naam "Glance"). Pagina's: overzicht, agenda, weer, nieuws, markten, to-do. Swipe = pagina, tik = vernieuwen (op nieuws: volgende koppen).
-- `Glance/companion.html` – telefoon: haalt Open-Meteo, iCal-links, RSS (standaard HLN, met reserve-URL), Yahoo Finance (standaard ^BFX, ABI.BR, BTC-EUR) op.
+- `Glance/companion.html` – telefoon: haalt Open-Meteo, iCal-links, RSS (standaard HLN, met reserve-URL), Yahoo Finance (standaard IWDA:AMS = IWDA.AS en BTC-EUR; notatie TICKER:BEURS wordt omgezet) op.
 - Protocol telefoon → bril: `setSnapshotForApp({type:'dash', d:<tekst>})`, regels `TAG|veld|veld`:
   `P` paginavolgorde, `W` weer, `H` per uur, `D` per dag, `E` afspraak, `N` nieuws, `S` koers, `T` taak, `U` bijgewerkt. JSON ≤ 3400 bytes.
 - Bril → telefoon: `{"type":"sync"}` bij start, `{"type":"refresh"}` bij tik.

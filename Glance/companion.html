@@ -82,8 +82,8 @@ details summary{cursor:pointer;color:var(--dim);font-size:14px}
 
   <section class="card">
     <h2>Markten</h2>
-    <label class="small" for="symbols">Symbolen (Yahoo Finance, komma-gescheiden)</label>
-    <input type="text" id="symbols" placeholder="^BFX, ABI.BR, BTC-EUR">
+    <label class="small" for="symbols">Symbolen, komma-gescheiden (bv. IWDA:AMS of IWDA.AS, BTC-EUR, ^BFX)</label>
+    <input type="text" id="symbols" placeholder="IWDA:AMS, BTC-EUR">
   </section>
 
   <section class="card">
@@ -117,7 +117,7 @@ const FEEDS = [
 const DEFAULTS = {
   order:['a','w','n','m','t'], enabled:{a:true,w:true,n:true,m:true,t:true},
   place:{name:'Brussel', lat:50.8505, lon:4.3488},
-  ics:'', days:7, feeds:['hln'], feedCustom:'', symbols:'^BFX, ABI.BR, BTC-EUR',
+  ics:'', days:7, feeds:['hln'], feedCustom:'', symbols:'IWDA:AMS, BTC-EUR',
   todos:[], interval:15,
 };
 let cfg = JSON.parse(JSON.stringify(DEFAULTS));
@@ -394,11 +394,19 @@ async function fetchNews(){
 }
 
 // ---------- markets ----------
-const SYMBOL_NAMES = {'^BFX':'BEL 20', '^AEX':'AEX', '^STOXX50E':'Euro Stoxx 50'};
+const SYMBOL_NAMES = {'^BFX':'BEL 20', '^AEX':'AEX', '^STOXX50E':'Euro Stoxx 50', 'IWDA.AS':'IWDA', 'BTC-EUR':'Bitcoin', 'BTC-USD':'Bitcoin $', 'ETH-EUR':'Ethereum'};
+// Accept exchange notation such as "IWDA:AMS" (Google Finance style) and map it to Yahoo symbols.
+const EXCHANGES = {AMS:'AS', EBR:'BR', BRU:'BR', EPA:'PA', ETR:'DE', FRA:'F', LON:'L', SWX:'SW', MIL:'MI', BME:'MC', NASDAQ:'', NYSE:''};
+function yahooSymbol(s){
+  const m = /^([A-Z0-9^.\-]+):([A-Z]+)$/.exec(s);
+  if (m && m[2] in EXCHANGES) return EXCHANGES[m[2]] ? m[1]+'.'+EXCHANGES[m[2]] : m[1];
+  if (s === 'BTC' || s === 'BITCOIN') return 'BTC-EUR';
+  return s;
+}
 function symbolLabel(s){ if (SYMBOL_NAMES[s]) return SYMBOL_NAMES[s]; return s.replace(/^\^/,'').replace(/\.[A-Z]{1,3}$/,'').replace(/-(EUR|USD|GBP)$/,''); }
 function fmtNum(v, digits){ return new Intl.NumberFormat('nl-NL',{minimumFractionDigits: digits, maximumFractionDigits: digits}).format(v); }
 async function fetchMarkets(){
-  const syms = cfg.symbols.split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean).slice(0, 7);
+  const syms = cfg.symbols.split(/[,\s]+/).map(s => yahooSymbol(s.trim().toUpperCase())).filter(Boolean).slice(0, 7);
   const out = []; const errors = [];
   await Promise.all(syms.map(async (sym, idx) => {
     try {
@@ -588,6 +596,8 @@ if (MC && MC.onFromApp) {
 (async function start(){
   const saved = await load('cfg');
   if (saved && typeof saved === 'object') cfg = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), saved);
+  // Installs that still use an earlier default list get the new IWDA + Bitcoin default.
+  if (['^AEX, ASML.AS, BTC-EUR', '^BFX, ABI.BR, BTC-EUR'].includes(cfg.symbols)) { cfg.symbols = DEFAULTS.symbols; saveCfg(); }
   for (const k of Object.keys(MODULES)) if (!cfg.order.includes(k)) cfg.order.push(k);
   const cached = await load('data');
   if (cached && typeof cached === 'object') Object.assign(data, cached, {errors: {}});

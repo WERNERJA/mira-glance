@@ -34,7 +34,7 @@ const rss = `<?xml version="1.0"?><rss><channel><title>HLN.be</title>${[
  'Nieuwe treinverbinding tussen Amsterdam en Berlijn sneller dan verwacht',
  'Onderzoek: steeds meer Nederlanders werken vier dagen per week',
  'Rijksmuseum opent tentoonstelling over de Gouden Eeuw & handel'].map(t => `<item><title><![CDATA[${t}]]></title></item>`).join('')}</channel></rss>`;
-const yahoo = { '^BFX': [4321.55, 4300.1], 'ABI.BR': [58.12, 58.9], 'BTC-EUR': [61234.5, 62890.1] };
+const yahoo = { '^BFX': [4321.55, 4300.1], 'ABI.BR': [58.12, 58.9], 'IWDA.AS': [104.52, 103.87], 'BTC-EUR': [61234.5, 62890.1] };
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });

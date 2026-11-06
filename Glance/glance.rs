@@ -385,6 +385,28 @@ unsafe fn news() {
 
 unsafe fn markets() {
     header(b"Markten");
+    // Few holdings: large cards so the price reads at a glance.
+    let count = each(b'S', 7, |_, _| true);
+    if count > 0 && count <= 3 {
+        each(b'S', 3, |i, s| {
+            let y = 88 + i as i32 * 116;
+            let change = field(s, 2);
+            let up = !change.starts_with(b"-");
+            stroke_round_rect(28, y, 584, 104, 14, 1, 4);
+            t(48, y + 12, 330, 24, 10, 0, field(s, 0));
+            t(48, y + 40, 330, 40, 15, 0, field(s, 1));
+            if !change.is_empty() {
+                let tx = 430; let ty = y + 62;
+                if up { fill_triangle(tx, ty - 12, tx - 13, ty + 10, tx + 13, ty + 10, 15); }
+                else { fill_triangle(tx - 13, ty - 10, tx + 13, ty - 10, tx, ty + 12, 9); }
+                let mut b = Buffer::new(); b.add(change); b.add(b"%");
+                t(452, y + 42, 144, 32, if up { 15 } else { 10 }, 2, b.bytes());
+                t(452, y + 14, 144, 18, 7, 2, b"vandaag");
+            }
+            true
+        });
+        return;
+    }
     let n = each(b'S', 7, |i, s| {
         let y = 88 + i as i32 * 50;
         let change = field(s, 2);
