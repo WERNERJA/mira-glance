@@ -1,0 +1,1089 @@
+<style>
+:root{--bg:#0d0f12;--card:#171a1f;--line:#262b33;--text:#eef1f5;--dim:#8d96a3;--accent:#7cc4ff;--ok:#6fd99a;--warn:#ffb86b;--bad:#ff7b7b}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,system-ui,sans-serif}
+main{max-width:560px;margin:0 auto;padding:18px 16px 60px}
+h1{font-size:26px;margin:4px 0 2px}
+.sub{color:var(--dim);margin:0 0 16px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:0 0 14px}
+.card h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:0 0 12px;font-weight:600}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.row>*{min-width:0}
+.grow{flex:1}
+label.small{display:block;color:var(--dim);font-size:13px;margin:10px 0 4px}
+input[type=text],input[type=password],input[type=url],select{width:100%;background:#0f1216;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit}
+button{background:#232832;color:var(--text);border:1px solid #333a45;border-radius:10px;padding:10px 14px;font:inherit;cursor:pointer;white-space:nowrap}
+button.primary{background:var(--accent);color:#06121d;border-color:transparent;font-weight:600}
+button.danger{background:#3a1f22;border-color:#5a2a30;color:#ffb3b3}
+button.ghost{background:transparent;border-color:transparent;color:var(--dim);padding:6px 8px}
+button.big{padding:14px;font-size:17px}
+button:disabled{opacity:.5}
+.status{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--dim)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+.small-dim{color:var(--dim);font-size:13px}
+.seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:12px}
+.seg button{flex:1;border:0;border-radius:0;background:transparent;color:var(--dim);padding:10px 6px}
+.seg button.on{background:#223042;color:var(--text);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#0f1216;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px;max-width:100%}
+.chip.btn{cursor:pointer}
+.chip .x{color:var(--dim);padding:0 2px 0 6px;font-size:16px}
+.results button{display:block;width:100%;text-align:left;margin-top:6px;white-space:normal}
+.results small{display:block;color:var(--dim);font-size:12px}
+.destbox{display:flex;gap:10px;align-items:center;background:#0f1216;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:10px}
+.inst{display:flex;gap:14px;align-items:center}
+.arrowbox{width:84px;height:84px;flex:none;background:#0f1216;border-radius:16px;display:flex;align-items:center;justify-content:center}
+.arrowbox svg{width:72px;height:72px}
+.inst-dist{font-size:34px;font-weight:700;line-height:1.1}
+.inst-text{font-size:17px;margin-top:2px}
+.inst-sub{color:var(--dim);font-size:14px;margin-top:4px}
+.summary{font-size:14px;color:var(--dim);margin:10px 0 0;padding:0;list-style:none}
+.summary li{padding:3px 0}
+.summary b{color:var(--text);font-weight:600}
+canvas#map{width:100%;height:320px;border-radius:12px;background:#0f1216;touch-action:none;display:block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.place{padding:10px 0;border-top:1px solid var(--line)}
+.place:first-child{border-top:0}
+.place b{font-size:16px}
+.place .meta{color:var(--dim);font-size:13px;margin:2px 0 8px}
+.stars{color:#ffd166}
+.err{color:var(--bad);font-size:13px;margin-top:6px}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+label.chip{margin:6px 8px 0 0}
+pre{white-space:pre-wrap;font-size:12px;color:var(--dim);background:#0f1216;border-radius:10px;padding:10px;max-height:260px;overflow:auto}
+details summary{cursor:pointer;color:var(--dim);font-size:14px}
+p.small{font-size:13px;margin:6px 0 0}
+[hidden]{display:none !important}
+</style>
+<main id="mira-companion-root">
+  <h1>Wegwijs</h1>
+  <p class="sub">Navigatie op je Mira-bril: een pijl met de afstand tot de volgende afslag, een kaart die met je looprichting meedraait en gesproken aanwijzingen. Op de bril: swipe voor de stappenlijst, tik voor het overzicht van de hele route.</p>
+
+  <section class="card">
+    <div class="row"><div class="status grow"><span class="dot" id="st-dot"></span><span id="st-text">Klaar om te vertrekken</span></div></div>
+    <div class="row" style="margin-top:8px"><span class="grow small-dim" id="gps-text">Gps: nog geen positie</span><span class="small-dim" id="glass-text">Bril: nog geen contact</span></div>
+    <div class="seg" id="mode-seg"><button data-m="w" class="on">Te voet</button><button data-m="b">Fiets</button><button data-m="c">Auto</button></div>
+  </section>
+
+  <section class="card" id="nav-card" hidden>
+    <h2>Onderweg</h2>
+    <div class="inst"><div class="arrowbox" id="inst-arrow"></div><div class="grow"><div class="inst-dist" id="inst-dist">--</div><div class="inst-text" id="inst-text"></div><div class="inst-sub" id="inst-sub"></div></div></div>
+    <ul class="summary" id="nav-summary"></ul>
+    <div class="row" style="margin-top:12px"><button class="danger grow" id="btn-stop">Stop navigatie</button><button id="btn-reroute">Herbereken</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Bestemming</h2>
+    <div class="row"><input type="text" id="q" class="grow" placeholder="Adres, plaats, naam of coördinaten" autocomplete="off"><button id="btn-search">Zoek</button></div>
+    <div class="results" id="q-results"></div>
+    <div class="chips" id="favs" style="margin-top:10px"></div>
+    <div id="dest-box" class="destbox" hidden><div class="grow"><b id="dest-name"></b><div class="small-dim" id="dest-sub"></div></div><button class="ghost" id="btn-fav" title="Bewaar als favoriet">☆ Favoriet</button></div>
+    <div class="row" style="margin-top:12px"><button class="primary big grow" id="btn-start" disabled>Start navigatie</button></div>
+    <details style="margin-top:10px"><summary>Recente bestemmingen</summary><div class="results" id="recent"></div></details>
+  </section>
+
+  <section class="card">
+    <h2>Kaart</h2>
+    <canvas id="map"></canvas>
+    <div class="row wrap" style="margin-top:8px"><button id="btn-follow">Volg mij</button><button id="btn-fit">Hele route</button><button id="btn-zin">+</button><button id="btn-zout">&minus;</button><button class="ghost" id="btn-pick">Kies op kaart</button></div>
+    <p class="small-dim" id="map-hint" style="margin:8px 0 0"></p>
+  </section>
+
+  <section class="card">
+    <h2>Restaurant zoeken</h2>
+    <div class="grid2">
+      <label class="small">Bron<select id="r-source"><option value="auto">Automatisch</option><option value="ta">Tripadvisor</option><option value="google">Google</option><option value="osm">OpenStreetMap</option></select></label>
+      <label class="small">Minimum sterren<select id="r-min"><option value="0">Alle</option><option value="3.5">3,5 of meer</option><option value="4">4 of meer</option><option value="4.5">4,5 of meer</option></select></label>
+      <label class="small">Maximale afstand<select id="r-dist"><option value="1">1 km</option><option value="2">2 km</option><option value="5">5 km</option><option value="10">10 km</option><option value="20">20 km</option></select></label>
+      <label class="small">Keuken<select id="r-cuisine"></select></label>
+    </div>
+    <div class="row" id="r-custom-row" hidden style="margin-top:8px"><input type="text" id="r-custom" class="grow" placeholder="bv. sushi, tapas, friet"></div>
+    <div class="row" style="margin-top:10px"><label class="chip" style="margin:0"><input type="checkbox" id="r-open"> Nu open</label><span class="grow"></span><button class="primary" id="btn-rsearch">Zoek restaurants</button></div>
+    <div id="r-status" class="small-dim" style="margin-top:8px"></div>
+    <div id="r-results"></div>
+  </section>
+
+  <section class="card">
+    <h2>Instellingen</h2>
+    <div class="row"><label class="chip grow" style="margin:0"><input type="checkbox" id="s-voice"> Gesproken aanwijzingen</label><button class="ghost" id="btn-voice-test">Test stem</button></div>
+    <label class="small">Stem<select id="s-voicesel"><option value="">Automatisch (Nederlands)</option></select></label>
+    <label class="small">Route berekenen via<select id="s-router"><option value="valhalla">OpenStreetMap - Valhalla (gratis)</option><option value="google">Google Maps (API-sleutel nodig)</option><option value="osrm">OpenStreetMap - OSRM</option></select></label>
+    <label class="small">Google Maps API-sleutel<input type="password" id="s-gkey" placeholder="AIza..." autocomplete="off"></label>
+    <p class="sub small">Google Cloud Console: maak een API-sleutel en schakel <i>Routes API</i> en <i>Places API (New)</i> in. Nodig voor Google-routes en Google-restaurants; zonder sleutel gebruikt Wegwijs OpenStreetMap.</p>
+    <label class="small">Tripadvisor API-sleutel<input type="password" id="s-takey" placeholder="Content API key" autocomplete="off"></label>
+    <p class="sub small">tripadvisor.com/developers: Content API, gratis tot 5.000 oproepen per maand. Zet geen referrer-beperking op de sleutel.</p>
+    <label class="chip"><input type="checkbox" id="s-rotate"> Kaart op de bril draait mee met je looprichting</label>
+    <label class="chip"><input type="checkbox" id="s-streets"> Straten in de buurt tonen op de bril</label>
+    <label class="chip"><input type="checkbox" id="s-reroute"> Automatisch herberekenen bij afwijken</label>
+    <label class="chip"><input type="checkbox" id="s-wake"> Scherm aan houden tijdens navigatie</label>
+    <div class="row" style="margin-top:14px"><button id="btn-demo">Demo: leg de route virtueel af</button></div>
+    <p class="sub small">Start eerst een navigatie; de demo stuurt dan nep-posities langs de route naar de bril, handig om alles te bekijken zonder te wandelen.</p>
+    <details style="margin-top:14px"><summary>Wat er naar de bril gaat</summary><pre id="raw"></pre></details>
+  </section>
+</main>
+<script>
+(function(){
+'use strict';
+const MC = window.miraCompanion || null;
+const $ = id => document.getElementById(id);
+const DEFAULTS = {
+  mode:'w', voice:true, voiceName:'', router:'valhalla', gkey:'', takey:'',
+  rotate:true, streets:true, reroute:true, wake:true,
+  favs:[], recent:[], rsource:'auto', rmin:'4', rdist:'5', rcuisine:'all', ropen:false,
+};
+let cfg = JSON.parse(JSON.stringify(DEFAULTS));
+const S = {
+  fix:null, hdg:-1, hdgSrc:'', compass:null, moving:false,
+  dest:null, nav:null, state:0, statusText:'', origin:null,
+  routeMsg:null, streetsMsg:null, placesMsg:null,
+  streetsCenter:null, streetsAt:0, streetsBusy:false,
+  places:[], lastNavText:'', lastNavSent:0, navTimer:null,
+  demo:null, glassesSeen:0, pick:false,
+};
+const SPEED = {w:1.35, b:4.2, c:11};           // m/s used for the demo and for ETA fallback
+const ARRIVE = {w:15, b:25, c:40};             // metres
+const OFF = {w:30, b:40, c:60};                // off-route threshold in metres
+const TOL = {w:1.5, b:3, c:6};                 // simplification tolerance for the glasses route
+const STREET_R = {w:350, b:600, c:1200};       // half size of the street box around the position
+const ANN = {w:[[150,'pre'],[25,'now']], b:[[300,'pre'],[45,'now']], c:[[1000,'far'],[300,'pre'],[70,'now']]};
+const MODE_NAMES = {w:'te voet', b:'met de fiets', c:'met de auto'};
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+const RANK = {motorway:1, trunk:1, primary:1, secondary:2, tertiary:3, unclassified:4, residential:4, living_street:4, pedestrian:5, service:6, footway:7, path:7, cycleway:7, track:8, steps:8};
+const CUISINES = [
+  {id:'all', label:'Alle keukens', q:'restaurant', keys:[], ta:[]},
+  {id:'asian', label:'Oosters / Aziatisch', q:'aziatisch restaurant', ta:['aziatisch','sushi'], keys:['asian','aziat','oosters','oriental','chinese','chinees','japan','sushi','ramen','thai','vietnam','korea','indian','indisch','india','indones','malay','maleis','filipin','cambod','nepal','taiwan','canton','szechuan','sichuan','hong kong','singapor','pakist','banglad','sri lank','tibet','burm','mongol','noodle','noedel','wok','dim sum','teppanyaki','poke']},
+  {id:'italian', label:'Italiaans / pizza', q:'italiaans restaurant', ta:['italiaans','pizza'], keys:['italian','italiaans','pizza','pasta','neapolit','sicil','tuscan','trattoria','osteria']},
+  {id:'french', label:'Frans', q:'frans restaurant', ta:['frans'], keys:['french','frans','bistro','brasserie']},
+  {id:'belgian', label:'Belgisch', q:'belgisch restaurant', ta:['belgisch'], keys:['belgian','belgisch','flemish','vlaams','friet','frites','mossel','stoofvlees']},
+  {id:'medit', label:'Grieks / mediterraan / tapas', q:'grieks restaurant', ta:['grieks','tapas'], keys:['greek','grieks','mediterr','spanish','spaans','tapas','portug','gyros','mezze']},
+  {id:'mideast', label:'Midden-Oosters / Turks', q:'turks restaurant', ta:['turks','libanees'], keys:['turkish','turks','lebanese','libanees','middle east','midden-oost','moroccan','marokk','persian','perzisch','israel','arab','kebab','syri','falafel','shawarma','pita']},
+  {id:'latin', label:'Mexicaans / Zuid-Amerikaans', q:'mexicaans restaurant', ta:['mexicaans'], keys:['mexican','mexicaans','latin','south american','zuid-amerik','peru','brazil','brazili','argentin','tex-mex','taco','burrito']},
+  {id:'grill', label:'Steak / grill / burger', q:'steakhouse', ta:['steakhouse','grill'], keys:['steak','grill','barbecue','bbq','burger','american','amerikaans','ribs']},
+  {id:'fish', label:'Vis / zeevruchten', q:'visrestaurant', ta:['vis','zeevruchten'], keys:['seafood','fish','vis','oester','zeevrucht','garnaal','mossel']},
+  {id:'veg', label:'Vegetarisch / vegan', q:'vegetarisch restaurant', ta:['vegetarisch','vegan'], keys:['vegetarian','vegan','vegetar','plantaard','healthy','gezond']},
+  {id:'custom', label:'Eigen trefwoord...', q:'', ta:[], keys:[]},
+];
+const SRC_NAMES = {ta:'Tripadvisor', google:'Google', osm:'OpenStreetMap'};
+const GPRICE = {PRICE_LEVEL_FREE:'gratis', PRICE_LEVEL_INEXPENSIVE:'€', PRICE_LEVEL_MODERATE:'€€', PRICE_LEVEL_EXPENSIVE:'€€€', PRICE_LEVEL_VERY_EXPENSIVE:'€€€€'};
+
+// ---------- storage ----------
+async function load(key){
+  try { if (MC && MC.storeGet) { const v = await MC.storeGet(key); if (v != null) { try { return typeof v === 'string' ? JSON.parse(v) : v; } catch(e) { return v; } } return null; } } catch(e) {}
+  try { const v = localStorage.getItem('wegwijs.'+key); return v ? JSON.parse(v) : null; } catch(e) { return null; }
+}
+async function save(key, value){
+  const s = JSON.stringify(value);
+  try { if (MC && MC.storeSet) { await MC.storeSet(key, s); return; } } catch(e) {}
+  try { localStorage.setItem('wegwijs.'+key, s); } catch(e) {}
+}
+const saveCfg = () => save('cfg', cfg);
+
+// ---------- helpers ----------
+function clean(s, max){
+  s = String(s == null ? '' : s)
+    .replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"')
+    .replace(/[‐-―−]/g, '-').replace(/…/g, '...').replace(/[·•]/g, '-')
+    .replace(/[|\r\n\t\u0000-\u001f  -​]+/g, ' ')
+    .replace(/[^ -~À-ſ]/g, '')
+    .replace(/\s+/g, ' ').trim();
+  if (max && s.length > max) s = s.slice(0, max-3).trimEnd() + '...';
+  return s;
+}
+const pad = n => String(n).padStart(2,'0');
+const hhmm = d => pad(d.getHours())+':'+pad(d.getMinutes());
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const bytes = obj => new TextEncoder().encode(JSON.stringify(obj)).length;
+function fmtDist(m){ if (m == null || m < 0) return '--'; if (m < 950) return Math.round(m < 100 ? m/5 : m/10) * (m < 100 ? 5 : 10) + ' m'; if (m < 9950) return (Math.round(m/100)/10).toFixed(1).replace('.', ',') + ' km'; return Math.round(m/1000) + ' km'; }
+function fmtMin(min){ if (min == null || min < 0) return '--'; if (min < 60) return min + ' min'; return Math.floor(min/60) + ' u ' + pad(min % 60); }
+function spokenDistance(d){
+  if (d >= 950) { const km = Math.round(d/100)/10; return (km === Math.floor(km) ? String(km) : km.toFixed(1).replace('.', ',')) + ' kilometer'; }
+  const r = d >= 200 ? Math.round(d/50)*50 : d >= 100 ? Math.round(d/10)*10 : Math.max(5, Math.round(d/5)*5);
+  return r + ' meter';
+}
+async function request(url, opts, asJson){
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const to = ctl ? setTimeout(() => ctl.abort(), 25000) : null;
+  try {
+    const r = await fetch(url, Object.assign({}, opts, ctl ? {signal: ctl.signal} : {}));
+    const text = await r.text();
+    if (!r.ok) {
+      let msg = 'HTTP ' + r.status;
+      try { const j = JSON.parse(text); msg += ': ' + (j.error && (j.error.message || j.error) || j.message || j.Message || j.error_message || ''); } catch(e) {}
+      throw new Error(msg);
+    }
+    return asJson ? JSON.parse(text) : text;
+  } finally { if (to) clearTimeout(to); }
+}
+const get = (url, asJson, headers) => request(url, headers ? {headers} : undefined, asJson);
+const post = (url, body, headers) => request(url, {method:'POST', headers: Object.assign({'Content-Type':'application/json'}, headers || {}), body: typeof body === 'string' ? body : JSON.stringify(body)}, true);
+
+// ---------- geo ----------
+const R = 6371000, rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
+function haversine(a, b){ const dLat = rad(b.lat-a.lat), dLon = rad(b.lon-a.lon); const s = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.min(1, Math.sqrt(s))); }
+function bearing(a, b){ const y = Math.sin(rad(b.lon-a.lon))*Math.cos(rad(b.lat)); const x = Math.cos(rad(a.lat))*Math.sin(rad(b.lat)) - Math.sin(rad(a.lat))*Math.cos(rad(b.lat))*Math.cos(rad(b.lon-a.lon)); return (deg(Math.atan2(y, x)) + 360) % 360; }
+function setOrigin(lat, lon){ S.origin = {lat, lon, k: Math.cos(rad(lat))}; }
+function toXY(lat, lon){ const o = S.origin; return [(lon - o.lon) * 111320 * o.k, (lat - o.lat) * 110574]; }
+function decodePolyline(str, prec){
+  const out = []; let i = 0, lat = 0, lon = 0; const f = 1/prec;
+  while (i < str.length) {
+    let b, sh = 0, r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32 && i < str.length);
+    lat += (r & 1) ? ~(r >> 1) : (r >> 1);
+    sh = 0; r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32 && i < str.length);
+    lon += (r & 1) ? ~(r >> 1) : (r >> 1);
+    out.push([lat*f, lon*f]);
+  }
+  return out;
+}
+// Douglas-Peucker on metre coordinates; returns the kept indices.
+function simplify(xs, ys, tol){
+  const n = xs.length; if (n <= 2) return xs.map((_, i) => i);
+  const keep = new Uint8Array(n); keep[0] = keep[n-1] = 1; const stack = [[0, n-1]]; const t2 = tol*tol;
+  while (stack.length) {
+    const [a, b] = stack.pop(); let maxD = -1, idx = -1;
+    const ax = xs[a], ay = ys[a], dx = xs[b]-ax, dy = ys[b]-ay, len2 = dx*dx + dy*dy;
+    for (let i = a+1; i < b; i++) {
+      let d;
+      if (len2 === 0) d = (xs[i]-ax)**2 + (ys[i]-ay)**2;
+      else { let t = ((xs[i]-ax)*dx + (ys[i]-ay)*dy)/len2; t = Math.max(0, Math.min(1, t)); d = (xs[i]-(ax+t*dx))**2 + (ys[i]-(ay+t*dy))**2; }
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (maxD > t2 && idx > 0) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
+  }
+  const out = []; for (let i = 0; i < n; i++) if (keep[i]) out.push(i); return out;
+}
+// Point stream for the glasses: zigzag varints, five bits per character plus a continuation bit.
+const AL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function encVal(v){ let z = v < 0 ? -v*2-1 : v*2; let s = ''; while (z >= 32) { s += AL[(z % 32) | 32]; z = Math.floor(z/32); } return s + AL[z]; }
+function encodePoints(pts){ let s = '', px = 0, py = 0; for (const p of pts) { const ix = Math.round(p[0]), iy = Math.round(p[1]); s += encVal(ix-px) + encVal(iy-py); px = ix; py = iy; } return s; }
+
+// ---------- instruction text ----------
+const DIRN = ['noorden','noordoosten','oosten','zuidoosten','zuiden','zuidwesten','westen','noordwesten'];
+const compassName = b => DIRN[Math.round((((b % 360) + 360) % 360) / 45) % 8];
+const ord = n => n + (n === 1 || n === 8 || n >= 20 ? 'ste' : 'e');
+function shortText(s){
+  const st = s.street, naar = st ? ' naar ' + st : '', op = st ? ' op ' + st : '';
+  switch (s.code) {
+    case 'S': return 'Rechtdoor' + op; case 'L': return 'Linksaf' + naar; case 'R': return 'Rechtsaf' + naar;
+    case 'l': return 'Flauw links' + naar; case 'r': return 'Flauw rechts' + naar;
+    case 'H': return 'Scherp links' + naar; case 'h': return 'Scherp rechts' + naar;
+    case 'U': case 'u': return 'Keer om' + op; case 'K': return 'Links aanhouden' + naar; case 'k': return 'Rechts aanhouden' + naar;
+    case 'O': return 'Rotonde' + (s.exit ? ', ' + ord(s.exit) + ' afslag' : '') + naar;
+    case 'A': return 'Bestemming' + (st ? ' ' + st : '');
+    case 'D': return 'Vertrek richting ' + (s.bearing != null ? compassName(s.bearing) : 'de route');
+    case 'T': return 'Trap' + naar; case 'F': return 'Veerboot' + naar; default: return 'Volg de route';
+  }
+}
+function spokenText(s){
+  const st = s.street, naar = st ? ' naar ' + st : '', op = st ? ' op ' + st : '';
+  switch (s.code) {
+    case 'S': return 'ga rechtdoor' + op; case 'L': return 'sla linksaf' + naar; case 'R': return 'sla rechtsaf' + naar;
+    case 'l': return 'ga flauw naar links' + naar; case 'r': return 'ga flauw naar rechts' + naar;
+    case 'H': return 'sla scherp linksaf' + naar; case 'h': return 'sla scherp rechtsaf' + naar;
+    case 'U': case 'u': return 'keer om'; case 'K': return 'houd links aan' + naar; case 'k': return 'houd rechts aan' + naar;
+    case 'O': return s.exit ? 'neem op de rotonde de ' + ord(s.exit) + ' afslag' + naar : 'ga de rotonde op' + naar;
+    case 'A': return 'je bent op je bestemming' + (st ? ', ' + st : '');
+    case 'D': return 'vertrek richting het ' + (s.bearing != null ? compassName(s.bearing) : 'begin van de route') + op;
+    case 'T': return 'neem de trap'; case 'F': return 'neem de veerboot'; default: return 'volg de route';
+  }
+}
+// Same glyph geometry as the glasses, as inline SVG for the phone.
+function arrowSvg(code, exit, color){
+  const mirror = 'Rrhuk'.includes(code); const base = {R:'L', r:'l', h:'H', u:'U', k:'K'}[code] || code;
+  const X = v => mirror ? 100 - v : v;
+  const P = pts => pts.map(p => X(p[0]) + ',' + p[1]).join(' ');
+  const head = (x, y, dir) => { const D = [[0,-1],[.7,-.7],[1,0],[.7,.7],[0,1],[-.7,.7],[-1,0],[-.7,-.7]]; if (mirror) dir = (8 - dir) % 8; const [ux, uy] = D[dir]; const vx = -uy, vy = ux; const hl = 17, hw = 15; return `<polygon points="${X(x)+ux*hl*(mirror?-1:1)*(mirror?-1:1)},${y+uy*hl} ${X(x)+vx*hw*(mirror?-1:1)},${y+vy*hw} ${X(x)-vx*hw*(mirror?-1:1)},${y-vy*hw}" fill="${color}"/>`; };
+  let body = '';
+  const L = pts => `<polyline points="${P(pts)}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`;
+  switch (base) {
+    case 'L': body = L([[50,90],[50,46],[32,46]]) + head(32, 46, 6); break;
+    case 'l': body = L([[50,90],[50,58],[31,39]]) + head(31, 39, 7); break;
+    case 'H': body = L([[50,90],[50,38],[30,58]]) + head(30, 58, 5); break;
+    case 'U': { const arc = []; for (let a = 0; a <= 180; a += 15) arc.push([50 + 16*Math.cos(rad(a)), 50 - 16*Math.sin(rad(a))]); body = L([[66,90],[66,50]].concat(arc, [[34,50],[34,66]])) + head(34, 66, 4); break; }
+    case 'O': body = `<circle cx="${X(50)}" cy="50" r="20" fill="none" stroke="${color}" stroke-width="9"/>` + L([[50,92],[50,70]]) + L([[50,30],[50,20]]) + head(50, 20, 0) + (exit ? `<text x="${X(50)}" y="56" text-anchor="middle" font-size="18" font-weight="700" fill="${color}">${exit}</text>` : ''); break;
+    case 'K': body = L([[50,90],[50,62],[36,46],[36,30]]) + head(36, 30, 0) + `<polyline points="${P([[50,62],[64,46],[64,32]])}" fill="none" stroke="${color}" stroke-opacity=".4" stroke-width="6" stroke-linecap="round"/>`; break;
+    case 'A': body = L([[34,14],[34,92]]) + `<rect x="34" y="16" width="42" height="30" fill="none" stroke="${color}" stroke-width="4"/>` + [[0,0],[2,0],[1,1]].map(([c, r]) => `<rect x="${34+c*14}" y="${16+r*15}" width="14" height="15" fill="${color}"/>`).join(''); break;
+    case 'D': body = `<circle cx="50" cy="80" r="7" fill="${color}"/>` + L([[50,70],[50,34]]) + head(50, 34, 0); break;
+    case 'T': body = L([[24,84],[38,84],[38,70],[50,70],[50,56],[62,56],[62,42],[76,42]]); break;
+    case 'F': body = L([[22,66],[30,80],[70,80],[78,66],[22,66]]) + L([[50,34],[50,66]]) + `<polygon points="50,36 50,62 72,62" fill="${color}"/>`; break;
+    default: body = L([[50,90],[50,34]]) + head(50, 34, 0);
+  }
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">${body}</svg>`;
+}
+
+// ---------- routing providers ----------
+const VALHALLA_CODES = {1:'D',2:'D',3:'D',4:'A',5:'A',6:'A',7:'S',8:'S',9:'r',10:'R',11:'h',12:'u',13:'U',14:'H',15:'L',16:'l',17:'S',18:'r',19:'l',20:'r',21:'l',22:'S',23:'k',24:'K',25:'S',26:'O',27:null,28:'F',29:'S',37:'k',38:'K',39:'S',40:'T',41:'T',42:'S',43:'S'};
+const GOOGLE_CODES = {TURN_SLIGHT_LEFT:'l', TURN_SHARP_LEFT:'H', UTURN_LEFT:'U', TURN_LEFT:'L', TURN_SLIGHT_RIGHT:'r', TURN_SHARP_RIGHT:'h', UTURN_RIGHT:'u', TURN_RIGHT:'R', STRAIGHT:'S', RAMP_LEFT:'l', RAMP_RIGHT:'r', MERGE:'S', FORK_LEFT:'K', FORK_RIGHT:'k', FERRY:'F', FERRY_TRAIN:'F', ROUNDABOUT_LEFT:'O', ROUNDABOUT_RIGHT:'O', DEPART:'D', NAME_CHANGE:'S'};
+function appendPoints(pts, more){ for (const p of more) { const l = pts[pts.length-1]; if (!l || l[0] !== p[0] || l[1] !== p[1]) pts.push(p); } }
+async function routeValhalla(a, b, mode){
+  const costing = mode === 'c' ? 'auto' : mode === 'b' ? 'bicycle' : 'pedestrian';
+  const body = {locations:[{lat:a.lat, lon:a.lon}, {lat:b.lat, lon:b.lon}], costing, directions_options:{units:'kilometers', language:'nl-NL'}};
+  const j = await post('https://valhalla1.openstreetmap.de/route', body);
+  if (!j.trip) throw new Error((j.error || 'geen route gevonden'));
+  const leg = j.trip.legs[0]; const pts = decodePolyline(leg.shape, 1e6);
+  const steps = [];
+  for (const m of leg.maneuvers) {
+    const code = VALHALLA_CODES[m.type] === undefined ? 'S' : VALHALLA_CODES[m.type];
+    if (code === null) continue;
+    let street = clean((m.street_names || m.begin_street_names || [])[0] || '', 40);
+    if (!street && /voetpad/i.test(m.instruction || '')) street = 'het voetpad';
+    if (!street && /fietspad/i.test(m.instruction || '')) street = 'het fietspad';
+    if (m.type === 5) street = 'aan je rechterkant'; else if (m.type === 6) street = 'aan je linkerkant'; else if (m.type === 4) street = '';
+    steps.push({at: m.begin_shape_index, code, exit: m.roundabout_exit_count || 0, street, bearing: m.bearing_after});
+  }
+  return finishRoute(pts, steps, Math.round(j.trip.summary.length*1000), Math.round(j.trip.summary.time), 'Valhalla (OpenStreetMap)', mode);
+}
+function streetFromInstruction(s){
+  s = clean(String(s || '').replace(/<[^>]+>/g, ''), 160);
+  const m = /\b(?:naar|op|richting|via)\s+(.+)$/i.exec(s);
+  let r = m ? m[1] : '';
+  r = r.replace(/\s*\(.*$/, '').replace(/[.]+$/, '').replace(/\s+(?:om |en |richting |blijf |de bestemming|bestemming).*$/i, '');
+  return clean(r, 40);
+}
+async function routeGoogle(a, b, mode){
+  if (!cfg.gkey) throw new Error('geen Google-sleutel ingesteld');
+  const travelMode = mode === 'c' ? 'DRIVE' : mode === 'b' ? 'BICYCLE' : 'WALK';
+  const body = {origin:{location:{latLng:{latitude:a.lat, longitude:a.lon}}}, destination:{location:{latLng:{latitude:b.lat, longitude:b.lon}}}, travelMode, languageCode:'nl-BE', units:'METRIC', polylineQuality:'HIGH_QUALITY'};
+  if (travelMode === 'DRIVE') body.routingPreference = 'TRAFFIC_AWARE';
+  const j = await post('https://routes.googleapis.com/directions/v2:computeRoutes', body, {'X-Goog-Api-Key': cfg.gkey, 'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.legs.steps.distanceMeters,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.navigationInstruction'});
+  const r = (j.routes || [])[0]; if (!r) throw new Error('geen route gevonden');
+  const pts = [], steps = [];
+  for (const st of r.legs[0].steps) {
+    const at = Math.max(0, pts.length - 1);
+    appendPoints(pts, decodePolyline((st.polyline && st.polyline.encodedPolyline) || '', 1e5));
+    const ni = st.navigationInstruction || {}; const instr = ni.instructions || '';
+    const code = GOOGLE_CODES[ni.maneuver] || (steps.length ? 'S' : 'D');
+    const exit = (/(\d+)(?:e|ste|de)\s+afslag/i.exec(instr) || [])[1];
+    steps.push({at: steps.length ? at : 0, code, exit: exit ? +exit : 0, street: streetFromInstruction(instr), instr: clean(instr, 90)});
+  }
+  return finishRoute(pts, steps, r.distanceMeters, parseInt(r.duration, 10), 'Google Maps', mode);
+}
+function osrmCode(type, mod){
+  if (type === 'depart') return 'D'; if (type === 'arrive') return 'A';
+  if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') return 'O';
+  if (type === 'exit roundabout' || type === 'exit rotary' || type === 'notification') return null;
+  const M = {'left':'L','right':'R','slight left':'l','slight right':'r','sharp left':'H','sharp right':'h','uturn':'U','straight':'S'};
+  let c = M[mod] || 'S';
+  if ((type === 'fork' || type === 'merge') && c === 'l') c = 'K'; if ((type === 'fork' || type === 'merge') && c === 'r') c = 'k';
+  return c;
+}
+async function routeOsrm(a, b, mode){
+  const prof = mode === 'c' ? 'routed-car' : mode === 'b' ? 'routed-bike' : 'routed-foot';
+  const j = await get('https://routing.openstreetmap.de/' + prof + '/route/v1/driving/' + a.lon + ',' + a.lat + ';' + b.lon + ',' + b.lat + '?steps=true&overview=false&geometries=polyline', true);
+  if (j.code !== 'Ok') throw new Error(j.message || j.code || 'geen route');
+  const r = j.routes[0]; const pts = [], steps = [];
+  for (const st of r.legs[0].steps) {
+    const at = Math.max(0, pts.length - 1);
+    appendPoints(pts, decodePolyline(st.geometry, 1e5));
+    const m = st.maneuver; const code = osrmCode(m.type, m.modifier); if (!code) continue;
+    steps.push({at: steps.length ? at : 0, code, exit: m.exit || 0, street: clean(st.name || '', 40), bearing: m.bearing_after});
+  }
+  return finishRoute(pts, steps, Math.round(r.distance), Math.round(r.duration), 'OSRM (OpenStreetMap)', mode);
+}
+function finishRoute(pts, steps, dist, dur, provider, mode){
+  if (pts.length < 2) throw new Error('route zonder geometrie');
+  const cum = new Float64Array(pts.length);
+  for (let i = 1; i < pts.length; i++) cum[i] = cum[i-1] + haversine({lat:pts[i-1][0], lon:pts[i-1][1]}, {lat:pts[i][0], lon:pts[i][1]});
+  steps.forEach(s => { s.at = Math.max(0, Math.min(pts.length-1, s.at|0)); });
+  steps.sort((a, b) => a.at - b.at);
+  const out = [];
+  for (const s of steps) { if (out.length && out[out.length-1].at === s.at) { if (s.code !== 'S' || out[out.length-1].code === 'S') out[out.length-1] = s; } else out.push(s); }
+  if (!out.length || out[out.length-1].code !== 'A') out.push({at: pts.length-1, code:'A', exit:0, street:''}); else out[out.length-1].at = pts.length-1;
+  if (out[0].code !== 'D') out.unshift({at:0, code:'D', exit:0, street: out[0].street || ''});
+  if (out[0].bearing == null) out[0].bearing = bearing({lat:pts[0][0], lon:pts[0][1]}, {lat:pts[Math.min(3, pts.length-1)][0], lon:pts[Math.min(3, pts.length-1)][1]});
+  for (let i = 0; i < out.length; i++) { out[i].len = i+1 < out.length ? Math.round(cum[out[i+1].at] - cum[out[i].at]) : 0; out[i].text = shortText(out[i]); out[i].spoken = spokenText(out[i]); }
+  const total = Math.round(cum[pts.length-1]);
+  return {pts, cum, steps: out, total, dur: dur > 0 ? dur : Math.round(total / SPEED[mode]), provider, mode};
+}
+async function computeRoute(from, to, mode){
+  const order = cfg.router === 'google' ? ['google','valhalla','osrm'] : cfg.router === 'osrm' ? ['osrm','valhalla','google'] : ['valhalla','osrm','google'];
+  const errors = [];
+  for (const p of order) {
+    if (p === 'google' && !cfg.gkey) continue;
+    try { return await (p === 'google' ? routeGoogle : p === 'osrm' ? routeOsrm : routeValhalla)(from, to, mode); }
+    catch(e) { errors.push(SRC_NAMES[p] || p + ': ' + (e.message || e)); }
+  }
+  throw new Error(errors.join(' / ') || 'geen routedienst beschikbaar');
+}
+
+// ---------- geocoding ----------
+function parseCoords(q){
+  let m = /(-?\d{1,2}[.,]\d+)\s*[, ]\s*(-?\d{1,3}[.,]\d+)/.exec(q.replace(/@/, ' '));
+  if (!m) return null;
+  const lat = parseFloat(m[1].replace(',', '.')), lon = parseFloat(m[2].replace(',', '.'));
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return {name: lat.toFixed(5) + ', ' + lon.toFixed(5), sub: 'coördinaten', lat, lon};
+}
+async function geocode(q){
+  const c = parseCoords(q); if (c) return [c];
+  const near = S.fix || map.center();
+  if (cfg.gkey) {
+    try {
+      const body = {textQuery: q, languageCode:'nl', pageSize: 6};
+      if (near) body.locationBias = {circle:{center:{latitude: near.lat, longitude: near.lon}, radius: 30000}};
+      const j = await post('https://places.googleapis.com/v1/places:searchText', body, {'X-Goog-Api-Key': cfg.gkey, 'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location'});
+      if (j.places && j.places.length) return j.places.map(p => ({name: (p.displayName && p.displayName.text) || q, sub: p.formattedAddress || '', lat: p.location.latitude, lon: p.location.longitude}));
+    } catch(e) {}
+  }
+  try {
+    const j = await get('https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=6&lang=default' + (near ? '&lat=' + near.lat + '&lon=' + near.lon : ''), true);
+    const out = (j.features || []).map(f => {
+      const p = f.properties; const addr = [p.street, p.housenumber].filter(Boolean).join(' ');
+      const name = p.name || addr || q;
+      const sub = [p.name ? addr : '', [p.postcode, p.city || p.district || p.county].filter(Boolean).join(' '), p.country && p.country.split(' / ')[0]].filter(Boolean).join(', ');
+      return {name, sub, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0]};
+    });
+    if (out.length) return out;
+  } catch(e) {}
+  const j = await get('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=nl&q=' + encodeURIComponent(q), true);
+  return j.map(r => { const parts = r.display_name.split(','); return {name: r.name || parts[0].trim(), sub: parts.slice(1, 4).join(',').trim(), lat: +r.lat, lon: +r.lon}; });
+}
+async function reverse(lat, lon){
+  try {
+    const j = await get('https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=nl&lat=' + lat + '&lon=' + lon, true);
+    const a = j.address || {};
+    const name = j.name || [a.road, a.house_number].filter(Boolean).join(' ') || (j.display_name || '').split(',')[0] || 'Gekozen punt';
+    return {name, sub: [a.postcode, a.city || a.town || a.village || a.municipality].filter(Boolean).join(' ')};
+  } catch(e) { return {name: 'Gekozen punt', sub: lat.toFixed(5) + ', ' + lon.toFixed(5)}; }
+}
+
+// ---------- speech ----------
+let voices = [];
+function loadVoices(){
+  try { voices = (window.speechSynthesis && speechSynthesis.getVoices()) || []; } catch(e) { voices = []; }
+  const sel = $('s-voicesel'); const keep = cfg.voiceName;
+  sel.innerHTML = '<option value="">Automatisch (Nederlands)</option>';
+  for (const v of voices.filter(v => /^nl/i.test(v.lang))) { const o = document.createElement('option'); o.value = v.name; o.textContent = v.name + ' (' + v.lang + ')'; sel.appendChild(o); }
+  sel.value = keep;
+}
+function pickVoice(){
+  if (!voices.length) return null;
+  if (cfg.voiceName) { const v = voices.find(v => v.name === cfg.voiceName); if (v) return v; }
+  return voices.find(v => /^nl[-_]BE/i.test(v.lang)) || voices.find(v => /^nl/i.test(v.lang)) || null;
+}
+let lastSaid = '';
+function say(text, interrupt){
+  lastSaid = text;
+  if (!cfg.voice || !('speechSynthesis' in window)) return;
+  try {
+    if (interrupt || speechSynthesis.pending) speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickVoice(); if (v) u.voice = v; u.lang = v ? v.lang : 'nl-BE'; u.rate = 1;
+    speechSynthesis.resume(); speechSynthesis.speak(u);
+  } catch(e) {}
+}
+if ('speechSynthesis' in window) { try { speechSynthesis.onvoiceschanged = loadVoices; } catch(e) {} }
+
+// ---------- gps ----------
+let watchId = null;
+function startGps(){
+  if (S.demo) return;
+  if (!navigator.geolocation) { $('gps-text').textContent = 'Gps: niet beschikbaar in deze app'; return; }
+  if (watchId != null) return;
+  watchId = navigator.geolocation.watchPosition(pos => {
+    if (S.demo) return;
+    const c = pos.coords;
+    acceptFix({lat: c.latitude, lon: c.longitude, acc: c.accuracy || 0, speed: c.speed != null && c.speed >= 0 ? c.speed : null,
+      heading: c.heading != null && !isNaN(c.heading) && c.heading >= 0 ? c.heading : null, t: Date.now()});
+  }, err => {
+    $('gps-text').textContent = 'Gps: ' + (err.code === 1 ? 'geen toestemming (sta locatie toe voor de Mira-app)' : err.code === 2 ? 'geen positie beschikbaar' : 'wachten duurt lang...');
+    if (S.nav && S.state === 2) { S.state = 5; publishNav(true); }
+  }, {enableHighAccuracy: true, maximumAge: 2000, timeout: 30000});
+}
+function smoothHeading(cur, h, k){ if (cur < 0) return h; const d = ((h - cur + 540) % 360) - 180; return (cur + d*k + 360) % 360; }
+function acceptFix(fix){
+  const prev = S.fix; S.fix = fix;
+  if (!S.origin) setOrigin(fix.lat, fix.lon);
+  else if (haversine(S.origin, fix) > 25000 && !S.nav) setOrigin(fix.lat, fix.lon);
+  let h = null, src = '';
+  if (fix.heading != null && (fix.speed == null || fix.speed > 0.4)) { h = fix.heading; src = 'gps'; }
+  else if (prev && fix.t - prev.t < 20000) { const d = haversine(prev, fix); if (d >= Math.max(3, Math.min(fix.acc || 0, prev.acc || 0) * 0.5)) { h = bearing(prev, fix); src = 'traject'; } }
+  if (h == null && S.compass != null && (fix.speed == null || fix.speed < 0.6)) { h = S.compass; src = 'kompas'; }
+  if (h != null) { S.hdg = smoothHeading(S.hdg, h, src === 'gps' ? 0.7 : 0.45); S.hdgSrc = src; }
+  S.moving = fix.speed != null ? fix.speed > 0.5 : (prev ? haversine(prev, fix) > 2 : false);
+  $('gps-text').textContent = 'Gps: ' + (fix.acc ? 'nauwkeurig tot ' + Math.round(fix.acc) + ' m' : 'positie bekend') + (S.hdg >= 0 ? ', koers ' + Math.round(S.hdg) + '°' : '');
+  if (S.nav && S.state !== 1) navStep(); else publishNav();
+  map.onFix();
+}
+function waitForFix(ms){ return new Promise(res => { const t0 = Date.now(); const iv = setInterval(() => { if (S.fix || Date.now() - t0 > ms) { clearInterval(iv); res(S.fix); } }, 300); }); }
+function startCompass(){
+  const D = window.DeviceOrientationEvent; if (!D || S.compassOn) return;
+  const go = () => { S.compassOn = true; window.addEventListener('deviceorientation', e => {
+    let h = null;
+    if (e.webkitCompassHeading != null && e.webkitCompassHeading >= 0) h = e.webkitCompassHeading;
+    else if (e.absolute && e.alpha != null) h = (360 - e.alpha) % 360;
+    if (h != null) S.compass = h;
+  }, true); };
+  try { if (typeof D.requestPermission === 'function') D.requestPermission().then(r => { if (r === 'granted') go(); }).catch(() => {}); else go(); } catch(e) {}
+}
+let wl = null;
+async function wakeLock(on){
+  try {
+    if (on && cfg.wake && 'wakeLock' in navigator) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); }
+    else if (!on && wl) { await wl.release(); wl = null; }
+  } catch(e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.nav && !wl) wakeLock(true); });
+
+// ---------- navigation ----------
+function projectOnRoute(r, x, y, hint){
+  const xy = r.xy, n = xy.length;
+  let best = {seg: 0, dist: Infinity, along: 0};
+  const scan = (from, to) => {
+    for (let i = Math.max(0, from); i < Math.min(n-1, to); i++) {
+      const ax = xy[i][0], ay = xy[i][1], bx = xy[i+1][0], by = xy[i+1][1];
+      const dx = bx-ax, dy = by-ay, len2 = dx*dx + dy*dy;
+      let t = len2 ? ((x-ax)*dx + (y-ay)*dy)/len2 : 0; t = Math.max(0, Math.min(1, t));
+      const px = ax + t*dx, py = ay + t*dy; const d = Math.hypot(x-px, y-py);
+      if (d < best.dist - 0.01) best = {seg: i, dist: d, along: r.cum[i] + t*Math.sqrt(len2)};
+    }
+  };
+  scan(hint - 4, hint + 60);
+  if (best.dist > 40) { const local = best; best = {seg: 0, dist: Infinity, along: 0}; scan(0, n); if (best.dist > local.dist - 10) best = local; }
+  return best;
+}
+function stepIndexFor(r, along){ let cur = 0; for (let i = 0; i < r.steps.length; i++) { if (r.cum[r.steps[i].at] <= along + 1) cur = i; else break; } return Math.min(cur, r.steps.length - 1); }
+function pointAtAlong(r, along){
+  along = Math.max(0, Math.min(r.total, along));
+  let i = 0; while (i < r.cum.length - 2 && r.cum[i+1] < along) i++;
+  const a = r.pts[i], b = r.pts[Math.min(i+1, r.pts.length-1)]; const seg = r.cum[i+1] - r.cum[i] || 1; const t = Math.max(0, Math.min(1, (along - r.cum[i]) / seg));
+  return {lat: a[0] + (b[0]-a[0])*t, lon: a[1] + (b[1]-a[1])*t, bearing: bearing({lat:a[0], lon:a[1]}, {lat:b[0], lon:b[1]})};
+}
+const lower = s => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+function followUp(r, i){
+  const nxt = r.steps[i+1]; if (!nxt || r.steps[i].len > 45) return '';
+  if (nxt.code === 'A') return ' en dan ben je op je bestemming';
+  return ' en daarna meteen ' + lower(nxt.text);
+}
+function announce(nav){
+  const r = nav.route, i = nav.cur + 1, next = r.steps[i]; if (!next) return;
+  const d = nav.distNext, lvls = ANN[nav.mode], done = nav.ann[i] || 0, stepLen = r.steps[nav.cur].len;
+  let k = -1; for (let j = 0; j < lvls.length; j++) if (d <= lvls[j][0]) k = j;
+  if (k < 0) return;
+  const level = k + 1; if (done >= level) return;
+  const [thr, kind] = lvls[k];
+  if (kind !== 'now' && stepLen < thr * 1.25) { nav.ann[i] = level; return; }
+  const text = kind === 'now' ? cap(next.spoken) + followUp(r, i) : 'Over ' + spokenDistance(d) + ' ' + next.spoken;
+  nav.ann[i] = level; say(text + '.');
+}
+function navStep(){
+  const nav = S.nav, fix = S.fix; if (!nav || !fix || !nav.route.xy) return;
+  const r = nav.route; const [x, y] = toXY(fix.lat, fix.lon);
+  const proj = projectOnRoute(r, x, y, nav.segIdx);
+  nav.segIdx = proj.seg; nav.along = proj.along; nav.offDist = proj.dist;
+  nav.cur = stepIndexFor(r, nav.along);
+  const next = r.steps[nav.cur + 1];
+  nav.distNext = next ? Math.max(0, Math.round(r.cum[next.at] - nav.along)) : 0;
+  nav.remaining = Math.max(0, Math.round(r.total - nav.along));
+  const end = {lat: r.pts[r.pts.length-1][0], lon: r.pts[r.pts.length-1][1]};
+  const thr = ARRIVE[nav.mode];
+  if (!nav.arrived && (haversine(fix, end) <= thr || (nav.remaining <= thr && proj.dist < 2*thr))) {
+    nav.arrived = true; S.state = 3; S.statusText = 'Aangekomen';
+    say('Je hebt je bestemming bereikt' + (nav.dest.name ? ': ' + nav.dest.name : '') + '.', true);
+    publishNav(true); uiNav(); wakeLock(false); stopDemo(); return;
+  }
+  const offThr = Math.max(OFF[nav.mode], 2.5 * (fix.acc || 0));
+  if (proj.dist > offThr) { if (!nav.offSince) nav.offSince = fix.t; nav.offCount = (nav.offCount || 0) + 1; } else { nav.offSince = 0; nav.offCount = 0; if (S.state === 4 && !nav.rerouting) { S.state = 2; S.statusText = ''; } }
+  if (nav.offSince && fix.t - nav.offSince >= 8000 && nav.offCount >= 3 && !nav.rerouting) {
+    if (cfg.reroute && Date.now() - nav.lastReroute > 25000) {
+      nav.rerouting = true; nav.lastReroute = Date.now(); S.state = 4; S.statusText = 'Nieuwe route berekenen...';
+      say('Je bent van de route af. Nieuwe route wordt berekend.', true);
+      publishNav(true); uiNav();
+      startNavigation(nav.dest, {reroute: true}).finally(() => { if (S.nav) S.nav.rerouting = false; });
+      return;
+    }
+    S.state = 4; S.statusText = 'Je bent van de route af';
+  } else if (S.state === 5) S.state = 2;
+  announce(nav);
+  publishNav(); uiNav(); maybeStreets(false); map.redraw();
+}
+async function startNavigation(dest, opts){
+  opts = opts || {};
+  if (!dest) return;
+  S.dest = dest; if (!opts.reroute) saveRecent(dest);
+  S.state = 1; S.statusText = 'Route berekenen...'; publishNav(true); uiNav();
+  startGps();
+  let from = S.fix;
+  if (!from) { setStatus('', 'Wachten op een gps-positie...'); from = await waitForFix(25000); }
+  if (!from) { S.state = 6; S.statusText = 'Geen gps-positie'; S.nav = null; publishNav(true); setStatus('bad', 'Geen gps-positie gevonden. Sta locatie toe voor de Mira-app en probeer opnieuw.'); uiNav(); return; }
+  if (!S.origin) setOrigin(from.lat, from.lon);
+  try {
+    const route = await computeRoute(from, dest, cfg.mode);
+    route.xy = route.pts.map(p => toXY(p[0], p[1]));
+    const first = !(opts.reroute && S.nav);
+    const startedAt = opts.reroute && S.nav ? S.nav.startedAt : Date.now();
+    S.nav = {dest, mode: cfg.mode, route, startedAt, cur: 0, segIdx: 0, along: 0, offSince: 0, offCount: 0, lastReroute: Date.now(), ann: {}, arrived: false, rerouting: false, routeId: (S.nav && S.nav.routeId || 0) + 1};
+    S.state = 2; S.statusText = '';
+    sendRoute(first);
+    save('nav', {dest, mode: cfg.mode, startedAt});
+    if (!opts.silent) {
+      const r = route; const s0 = r.steps[0], s1 = r.steps[1];
+      let text = (opts.reroute ? 'Nieuwe route: ' : 'Route berekend: ') + spokenDistance(r.total) + ', ongeveer ' + Math.max(1, Math.round(r.dur/60)) + ' minuten ' + MODE_NAMES[cfg.mode] + '. ' + cap(s0.spoken);
+      if (s1 && s1.code !== 'A') { text += '. Daarna over ' + spokenDistance(s0.len) + ' ' + lower(s1.text); S.nav.ann[1] = s0.len < ANN[cfg.mode][0][0] * 1.25 ? 1 : 0; }
+      say(text + '.', true);
+    }
+    navStep(); maybeStreets(true); wakeLock(true);
+    setStatus('ok', 'Navigatie actief ' + MODE_NAMES[cfg.mode] + ' via ' + route.provider);
+  } catch(e) {
+    S.state = 6; S.statusText = 'Route mislukt: ' + clean(e.message || e, 60); S.nav = null; publishNav(true);
+    setStatus('bad', 'Route berekenen mislukt: ' + (e.message || e));
+  }
+  uiNav();
+}
+function stopNavigation(){
+  S.nav = null; S.state = 0; S.statusText = ''; S.routeMsg = null; S.streetsMsg = null; S.streetsCenter = null;
+  stopDemo(); wakeLock(false); save('nav', null);
+  sendOrdered({type:'clear'}); publishNav(true); uiNav(); setStatus('', 'Navigatie gestopt'); map.redraw();
+}
+function sendRoute(first){
+  const nav = S.nav, r = nav.route;
+  const xs = r.xy.map(p => p[0]), ys = r.xy.map(p => p[1]);
+  const stepList = r.steps.length > 40 ? r.steps.slice(0, 39).concat([r.steps[r.steps.length-1]]) : r.steps;
+  let tol = TOL[nav.mode], keep = null, enc = '', text = '';
+  for (let tries = 0; tries < 14; tries++) {
+    const set = new Set(simplify(xs, ys, tol)); for (const s of stepList) set.add(s.at);
+    keep = [...set].sort((a, b) => a - b);
+    if (keep.length <= 240) {
+      enc = encodePoints(keep.map(i => r.xy[i]));
+      const orig2simple = new Map(keep.map((o, i) => [o, i]));
+      const K = stepList.map(s => ['K', orig2simple.get(s.at), s.code, s.len, s.exit || 0, clean(s.text, 36)].join('|'));
+      text = ['F|' + nav.routeId + '|' + (first ? 1 : 0), 'G|' + enc].concat(K, ['D|' + clean(nav.dest.name, 44) + '|' + r.total + '|' + Math.round(r.dur/60)]).join('\n');
+      if (bytes({type:'route', d: text}) <= 3400) break;
+    }
+    tol *= 1.6;
+  }
+  nav.keep = keep;
+  // Segment index map for the progress line.
+  const o2s = new Int32Array(r.pts.length); let k = 0; for (let i = 0; i < r.pts.length; i++) { while (k + 1 < keep.length && keep[k+1] <= i) k++; o2s[i] = k; }
+  nav.o2s = o2s;
+  S.routeMsg = {type:'route', d: text}; sendOrdered(S.routeMsg);
+}
+function buildNav(){
+  const L = []; const nav = S.nav;
+  L.push('T|' + S.state + '|' + clean(S.statusText, 60));
+  if (S.fix && S.origin) { const [x, y] = toXY(S.fix.lat, S.fix.lon); L.push(['S', Math.round(x), Math.round(y), S.hdg < 0 ? -1 : Math.round(S.hdg) % 360, Math.round(S.fix.acc || 0), S.moving ? 1 : 0].join('|')); }
+  if (nav && nav.route) {
+    const r = nav.route; const next = r.steps[nav.cur + 1], after = r.steps[nav.cur + 2];
+    if (next) L.push(['M', next.code, nav.distNext, clean(next.street, 44), next.exit || 0].join('|'));
+    if (next && after && next.code !== 'A') L.push(['A', after.code, clean(after.street, 28)].join('|'));
+    const remMin = Math.round((nav.remaining || 0) / (r.total || 1) * r.dur / 60);
+    L.push(['R', nav.remaining || 0, remMin, hhmm(new Date(Date.now() + remMin*60000)), r.total].join('|'));
+    L.push('P|' + nav.cur + '|' + (nav.o2s ? nav.o2s[Math.min(nav.segIdx, nav.o2s.length-1)] : 0));
+  }
+  const d = (nav && nav.dest) || S.dest; if (d) L.push('D|' + clean(d.name, 44));
+  L.push('V|' + cfg.mode + '|' + (cfg.rotate ? 1 : 0));
+  return L.join('\n');
+}
+function publishNav(force){
+  const text = buildNav(); const now = Date.now();
+  if (!force && text === S.lastNavText) return;
+  if (!force && now - S.lastNavSent < 900) { if (!S.navTimer) S.navTimer = setTimeout(() => { S.navTimer = null; publishNav(false); }, 1000 - (now - S.lastNavSent)); return; }
+  S.lastNavText = text; S.lastNavSent = now;
+  $('raw').textContent = text + (S.routeMsg ? '\n\n[route] ' + S.routeMsg.d.slice(0, 400) + (S.routeMsg.d.length > 400 ? '...' : '') : '');
+  sendSnapshot({type:'nav', d: text});
+}
+async function sendSnapshot(msg){
+  if (!MC) return;
+  try { if (MC.setSnapshotForApp) await MC.setSnapshotForApp(msg); else await MC.sendToApp(msg); }
+  catch(e) { setTimeout(() => publishNav(true), 3000); }
+}
+async function sendOrdered(msg, attempt){
+  if (!MC || !MC.sendToApp) return;
+  try { await MC.sendToApp(msg); }
+  catch(e) { if ((attempt || 0) < 4) setTimeout(() => sendOrdered(msg, (attempt || 0) + 1), 2500 * ((attempt || 0) + 1)); }
+}
+async function maybeStreets(force){
+  if (!cfg.streets || !S.nav || !S.fix || S.streetsBusy || !S.origin) return;
+  const now = Date.now(); const radius = STREET_R[S.nav.mode]; const c = S.streetsCenter;
+  if (!force && c && haversine(c, S.fix) < radius * 0.45 && now - S.streetsAt < 900000) return;
+  if (!force && now - S.streetsAt < 20000) return;
+  S.streetsBusy = true;
+  try {
+    const center = {lat: S.fix.lat, lon: S.fix.lon};
+    const dLat = radius/110574, dLon = radius/(111320*Math.cos(rad(center.lat)));
+    const bbox = [center.lat-dLat, center.lon-dLon, center.lat+dLat, center.lon+dLon].map(v => v.toFixed(5)).join(',');
+    const filter = S.nav.mode === 'c'
+      ? 'highway~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|motorway_link|trunk_link|primary_link|secondary_link)$"'
+      : 'highway~"^(primary|secondary|tertiary|unclassified|residential|living_street|pedestrian|footway|path|cycleway|service|track|steps|primary_link|secondary_link)$"';
+    const q = '[out:json][timeout:12];way[' + filter + '](' + bbox + ');out geom;';
+    let j = null;
+    for (const host of OVERPASS) { try { j = await post(host, 'data=' + encodeURIComponent(q), {'Content-Type':'application/x-www-form-urlencoded'}); if (j && j.elements) break; } catch(e) { j = null; } }
+    S.streetsAt = Date.now();
+    if (!j) throw new Error('overpass');
+    S.streetsCenter = center;
+    const ways = j.elements.filter(e => e.geometry && e.geometry.length > 1).map(e => ({rank: RANK[e.tags && e.tags.highway] || 9, g: e.geometry}));
+    ways.sort((a, b) => a.rank - b.rank);
+    const lines = []; let size = 30; const tol = S.nav.mode === 'c' ? 6 : 2.5;
+    for (const w of ways) {
+      const xy = w.g.map(p => toXY(p.lat, p.lon)); const xs = xy.map(p => p[0]), ys = xy.map(p => p[1]);
+      const line = 'L|' + encodePoints(simplify(xs, ys, tol).map(i => xy[i]));
+      if (size + line.length + 1 > 3300) break;
+      lines.push(line); size += line.length + 1;
+      if (lines.length >= 138) break;
+    }
+    S.streetsMsg = {type:'streets', d: lines.join('\n')}; sendOrdered(S.streetsMsg);
+  } catch(e) { S.streetsAt = Date.now() - 20000 + 60000; }
+  finally { S.streetsBusy = false; }
+}
+
+// ---------- demo walk ----------
+function stopDemo(){ if (S.demo) { clearInterval(S.demo.timer); S.demo = null; $('btn-demo').textContent = 'Demo: leg de route virtueel af'; } }
+function toggleDemo(){
+  if (S.demo) { stopDemo(); return; }
+  if (!S.nav) { setStatus('warn', 'Start eerst een navigatie; daarna kun je de route virtueel afleggen.'); return; }
+  const r = S.nav.route; const speed = SPEED[S.nav.mode] * (window.__demoFactor || 1);
+  S.demo = {along: S.nav.along || 0, timer: setInterval(() => {
+    const d = S.demo; if (!d || !S.nav) { stopDemo(); return; }
+    d.along = Math.min(r.total, d.along + speed * (window.__demoInterval || 1000) / 1000);
+    const p = pointAtAlong(r, d.along); const j = () => (Math.random() - 0.5) * 0.00003;
+    acceptFix({lat: p.lat + j(), lon: p.lon + j(), acc: 8, speed, heading: p.bearing, t: Date.now()});
+    if (d.along >= r.total) stopDemo();
+  }, window.__demoInterval || 1000)};
+  $('btn-demo').textContent = 'Stop demo';
+}
+
+// ---------- restaurants ----------
+function openFromHours(h){
+  try {
+    if (!h || !h.periods || !h.periods.length) return 0;
+    const now = new Date(); const day = now.getDay(); const t = now.getHours()*100 + now.getMinutes();
+    for (const p of h.periods) {
+      if (!p.open) continue; const od = +p.open.day, ot = +p.open.time; const cd = p.close ? +p.close.day : od; const ct = p.close ? +p.close.time : 2359;
+      if (od === day && (cd === day ? (t >= ot && t < ct) : t >= ot)) return 1;
+      if (cd === day && od !== day && t < ct) return 1;
+    }
+    return 2;
+  } catch(e) { return 0; }
+}
+async function taSearch(f){
+  const key = cfg.takey; if (!key) throw new Error('geen Tripadvisor-sleutel ingesteld (zie Instellingen)');
+  const base = 'https://api.content.tripadvisor.com/api/v1';
+  const q = p => base + p + (p.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key) + '&language=nl';
+  const seen = new Map(); const add = (j, via) => { for (const d of (j && j.data) || []) if (d.location_id && !seen.has(d.location_id)) seen.set(d.location_id, via); };
+  const ll = f.lat.toFixed(6) + ',' + f.lon.toFixed(6);
+  try { add(await get(q('/location/nearby_search?latLong=' + ll + '&category=restaurants&radius=' + f.radiusKm + '&radiusUnit=km'), true, {accept:'application/json'}), false); }
+  catch(e) { if (/HTTP (401|403)/.test(e.message)) throw new Error('Tripadvisor weigert de sleutel (controleer de sleutel en zet de referrer-beperking uit)'); throw e; }
+  const terms = f.cuisine.id === 'custom' ? [f.custom] : f.cuisine.ta;
+  for (const term of terms.slice(0, 2)) { if (!term) continue; try { add(await get(q('/location/search?searchQuery=' + encodeURIComponent(term + ' restaurant') + '&category=restaurants&latLong=' + ll + '&radius=' + f.radiusKm + '&radiusUnit=km'), true, {accept:'application/json'}), true); } catch(e) {} }
+  const ids = [...seen.keys()].slice(0, 16);
+  const details = await Promise.all(ids.map(id => get(q('/location/' + id + '/details?currency=EUR'), true, {accept:'application/json'}).then(d => ({d, via: seen.get(id)})).catch(() => null)));
+  return details.filter(Boolean).map(({d, via}) => {
+    const lat = +d.latitude, lon = +d.longitude; const cuisines = (d.cuisine || []).map(c => c.localized_name || c.name).filter(Boolean);
+    const ao = d.address_obj || {};
+    return {name: d.name || '', lat, lon, rating: d.rating ? +d.rating : null, reviews: d.num_reviews ? +d.num_reviews : 0, cuisines,
+      keys: (d.cuisine || []).map(c => String(c.name || '').toLowerCase().replace(/_/g, ' ')), price: d.price_level || '',
+      addr: ao.street1 ? ao.street1 + (ao.city ? ', ' + ao.city : '') : (ao.address_string || ''), open: openFromHours(d.hours), url: d.web_url, source: 'Tripadvisor', via,
+      dist: isFinite(lat) && isFinite(lon) ? Math.round(haversine(f, {lat, lon})) : 1e9};
+  });
+}
+async function googlePlaces(f){
+  if (!cfg.gkey) throw new Error('geen Google-sleutel ingesteld (zie Instellingen)');
+  const body = {textQuery: f.cuisine.id === 'custom' ? f.custom + ' restaurant' : f.cuisine.q, languageCode:'nl', pageSize: 20, locationBias:{circle:{center:{latitude: f.lat, longitude: f.lon}, radius: Math.min(50000, f.radiusKm*1000)}}};
+  if (f.minRating) body.minRating = Math.min(4.5, Math.floor(f.minRating*2)/2);
+  if (f.openNow) body.openNow = true;
+  if (f.cuisine.id === 'all') body.includedType = 'restaurant';
+  const j = await post('https://places.googleapis.com/v1/places:searchText', body, {'X-Goog-Api-Key': cfg.gkey, 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.primaryType,places.primaryTypeDisplayName,places.currentOpeningHours.openNow,places.googleMapsUri'});
+  return (j.places || []).map(p => {
+    const lat = p.location.latitude, lon = p.location.longitude; const typeName = (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '';
+    return {name: (p.displayName && p.displayName.text) || '', lat, lon, rating: p.rating || null, reviews: p.userRatingCount || 0, cuisines: typeName ? [typeName] : [],
+      keys: [String(p.primaryType || '').toLowerCase().replace(/_/g, ' '), typeName.toLowerCase()], price: GPRICE[p.priceLevel] || '', addr: (p.formattedAddress || '').replace(/, (België|Nederland)$/, ''),
+      open: p.currentOpeningHours ? (p.currentOpeningHours.openNow ? 1 : 2) : 0, url: p.googleMapsUri, source: 'Google', via: f.cuisine.id !== 'all', dist: Math.round(haversine(f, {lat, lon}))};
+  });
+}
+async function osmPlaces(f){
+  const q = '[out:json][timeout:20];nwr["amenity"~"^(restaurant|fast_food|food_court)$"]["name"](around:' + Math.round(f.radiusKm*1000) + ',' + f.lat.toFixed(6) + ',' + f.lon.toFixed(6) + ');out center tags 120;';
+  let j = null;
+  for (const host of OVERPASS) { try { j = await post(host, 'data=' + encodeURIComponent(q), {'Content-Type':'application/x-www-form-urlencoded'}); if (j && j.elements) break; } catch(e) { j = null; } }
+  if (!j) throw new Error('OpenStreetMap (Overpass) antwoordt niet');
+  return j.elements.map(e => {
+    const t = e.tags || {}; const lat = e.lat != null ? e.lat : e.center && e.center.lat; const lon = e.lon != null ? e.lon : e.center && e.center.lon;
+    const cuisines = String(t.cuisine || '').split(/;\s*/).filter(Boolean).map(c => c.replace(/_/g, ' '));
+    return {name: t.name, lat, lon, rating: null, reviews: 0, cuisines, keys: cuisines.map(c => c.toLowerCase()), price: '',
+      addr: [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ') + (t['addr:city'] ? ', ' + t['addr:city'] : ''), open: 0,
+      url: 'https://www.openstreetmap.org/' + e.type + '/' + e.id, source: 'OpenStreetMap', via: false, dist: isFinite(lat) && isFinite(lon) ? Math.round(haversine(f, {lat, lon})) : 1e9};
+  }).filter(p => isFinite(p.lat) && p.name);
+}
+function cuisineMatch(p, f){
+  if (f.cuisine.id === 'all') return true;
+  const terms = f.cuisine.id === 'custom' ? f.custom.toLowerCase().split(/[,\s]+/).filter(Boolean) : f.cuisine.keys;
+  const hay = (p.keys.join(' ') + ' ' + p.cuisines.join(' ') + ' ' + p.name).toLowerCase();
+  return terms.some(k => hay.includes(k));
+}
+async function searchRestaurants(){
+  const near = S.fix || map.center();
+  const cuisine = CUISINES.find(c => c.id === cfg.rcuisine) || CUISINES[0];
+  const f = {lat: near.lat, lon: near.lon, radiusKm: +cfg.rdist, minRating: +cfg.rmin, cuisine, custom: $('r-custom').value.trim(), openNow: cfg.ropen};
+  if (cuisine.id === 'custom' && !f.custom) { rStatus('Vul een trefwoord in voor de keuken.'); return; }
+  const src = cfg.rsource === 'auto' ? (cfg.takey ? 'ta' : cfg.gkey ? 'google' : 'osm') : cfg.rsource;
+  rStatus('Zoeken via ' + SRC_NAMES[src] + (S.fix ? ' rond je positie...' : ' rond het midden van de kaart...'));
+  $('btn-rsearch').disabled = true;
+  try {
+    let list = src === 'ta' ? await taSearch(f) : src === 'google' ? await googlePlaces(f) : await osmPlaces(f);
+    list = list.filter(p => p.dist <= f.radiusKm*1000 && (!f.openNow || p.open !== 2) && (src === 'osm' || !f.minRating || (p.rating || 0) >= f.minRating));
+    for (const p of list) p.match = cuisineMatch(p, f) ? 1 : 0;
+    list = list.filter(p => p.match || (p.via && src !== 'osm'));
+    list.sort((a, b) => (b.match - a.match) || ((b.rating || 0) - (a.rating || 0)) || ((b.reviews || 0) - (a.reviews || 0)) || (a.dist - b.dist));
+    S.places = list.slice(0, 12); renderPlaces(); sendPlaces(); map.redraw();
+    rStatus(list.length ? list.length + ' restaurant' + (list.length === 1 ? '' : 's') + ' gevonden via ' + SRC_NAMES[src] + '; de eerste ' + Math.min(8, list.length) + ' staan ook op de bril.' + (src === 'osm' ? ' OpenStreetMap heeft geen beoordelingen, dus het sterrenfilter is niet toegepast.' : '') : 'Geen restaurants gevonden met deze filters.');
+  } catch(e) { rStatus('Zoeken mislukt: ' + (e.message || e)); }
+  $('btn-rsearch').disabled = false;
+}
+function rStatus(t){ $('r-status').textContent = t; }
+function priceWords(p){ const n = (String(p || '').match(/\u20ac/g) || []).length; return ['', 'voordelig', 'gemiddelde prijs', 'duur', 'heel duur'][Math.min(4, n)] || ''; }
+const placeToDest = p => ({name: p.name, sub: [p.cuisines[0], p.addr].filter(Boolean).join(' - '), lat: p.lat, lon: p.lon});
+function sendPlaces(){
+  const top = S.places.slice(0, 8);
+  const L = ['F|' + top.length];
+  for (const p of top) L.push(['Q', clean(p.name, 36), p.rating ? Math.round(p.rating*10) : 0, p.reviews || 0, clean([p.cuisines.slice(0, 2).join(', '), priceWords(p.price)].filter(Boolean).join(' - '), 36), Math.min(65535, p.dist), p.open, clean(p.addr, 44)].join('|'));
+  S.placesMsg = top.length ? {type:'places', d: L.join('\n')} : null;
+  if (S.placesMsg) sendOrdered(S.placesMsg);
+}
+function stars(r){ if (!r) return ''; const full = Math.floor(r + 0.25), half = r - Math.floor(r) >= 0.25 && r - Math.floor(r) < 0.75; return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(Math.max(0, 5 - full - (half ? 1 : 0))); }
+function renderPlaces(){
+  const box = $('r-results'); box.innerHTML = '';
+  S.places.forEach((p, i) => {
+    const div = document.createElement('div'); div.className = 'place';
+    const meta = [p.rating ? '<span class="stars">' + stars(p.rating) + '</span> ' + p.rating.toFixed(1).replace('.', ',') + (p.reviews ? ' (' + p.reviews + ')' : '') : 'geen beoordeling', esc(p.cuisines.slice(0, 2).join(', ')), esc(p.price), fmtDist(p.dist), p.open === 1 ? '<span style="color:var(--ok)">nu open</span>' : p.open === 2 ? '<span style="color:var(--bad)">gesloten</span>' : ''].filter(Boolean).join(' &middot; ');
+    div.innerHTML = '<b>' + (i+1) + '. ' + esc(p.name) + '</b><div class="meta">' + meta + (p.addr ? '<br>' + esc(p.addr) : '') + '</div><div class="row"><button class="primary">Hiernaartoe (' + MODE_NAMES[cfg.mode] + ')</button>' + (p.url ? '<a class="small-dim" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.source) + ' ↗</a>' : '') + '</div>';
+    div.querySelector('button').onclick = () => { setDest(placeToDest(p)); startNavigation(S.dest, {}); window.scrollTo({top: 0, behavior: 'smooth'}); };
+    box.appendChild(div);
+  });
+}
+
+// ---------- map ----------
+const map = (() => {
+  const cv = $('map'); const ctx = cv.getContext('2d');
+  let z = 15, center = {lat: 50.8503, lon: 4.3517}, follow = true, dpr = 1, W = 0, H = 320, drag = null, moved = false;
+  const tiles = new Map(); let raf = 0;
+  const TILE = 256;
+  const lon2x = (lon, zz) => (lon + 180)/360 * Math.pow(2, zz) * TILE;
+  const lat2y = (lat, zz) => (1 - Math.log(Math.tan(rad(lat)) + 1/Math.cos(rad(lat)))/Math.PI)/2 * Math.pow(2, zz) * TILE;
+  const x2lon = (x, zz) => x/(Math.pow(2, zz)*TILE)*360 - 180;
+  const y2lat = (y, zz) => { const n = Math.PI - 2*Math.PI*y/(Math.pow(2, zz)*TILE); return deg(Math.atan(0.5*(Math.exp(n) - Math.exp(-n)))); };
+  const toPx = (lat, lon) => [W/2 + lon2x(lon, z) - lon2x(center.lon, z), H/2 + lat2y(lat, z) - lat2y(center.lat, z)];
+  const fromPx = (px, py) => ({lon: x2lon(lon2x(center.lon, z) + px - W/2, z), lat: y2lat(lat2y(center.lat, z) + py - H/2, z)});
+  function tile(x, y){
+    const n = Math.pow(2, z); x = ((x % n) + n) % n; if (y < 0 || y >= n) return null;
+    const key = z + '/' + x + '/' + y; let t = tiles.get(key);
+    if (!t) {
+      t = {img: new Image(), ok: false}; t.img.onload = () => { t.ok = true; redraw(); }; t.img.onerror = () => {};
+      t.img.src = 'https://tile.openstreetmap.org/' + key + '.png'; tiles.set(key, t);
+      if (tiles.size > 300) tiles.delete(tiles.keys().next().value);
+    }
+    return t.ok ? t.img : null;
+  }
+  function resize(){ dpr = Math.min(2, window.devicePixelRatio || 1); W = cv.clientWidth || 320; cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); redraw(); }
+  function redraw(){ if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
+  function pin(x, y, color, label){
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x-9, y-16); ctx.arc(x, y-20, 10, Math.PI*0.85, Math.PI*0.15, false); ctx.lineTo(x, y); ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y-20, 4, 0, Math.PI*2); ctx.fillStyle = '#fff'; ctx.fill();
+    if (label) { ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(label, x, y-16); }
+  }
+  function draw(){
+    if (!W) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    const tl = fromPx(0, 0), br = fromPx(W, H);
+    const x0 = Math.floor(lon2x(tl.lon, z)/TILE), x1 = Math.floor(lon2x(br.lon, z)/TILE), y0 = Math.floor(lat2y(tl.lat, z)/TILE), y1 = Math.floor(lat2y(br.lat, z)/TILE);
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      const img = tile(tx, ty); const px = W/2 + tx*TILE - lon2x(center.lon, z), py = H/2 + ty*TILE - lat2y(center.lat, z);
+      if (img) { try { ctx.drawImage(img, Math.round(px), Math.round(py), TILE, TILE); } catch(e) {} } else { ctx.fillStyle = '#1a1f26'; ctx.fillRect(Math.round(px), Math.round(py), TILE, TILE); }
+    }
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(0, 0, W, H);
+    const nav = S.nav;
+    if (nav && nav.route) {
+      const r = nav.route; const cut = Math.min(nav.segIdx + 1, r.pts.length - 1);
+      const path = (from, to) => { ctx.beginPath(); for (let i = from; i <= to; i++) { const [x, y] = toPx(r.pts[i][0], r.pts[i][1]); if (i === from) ctx.moveTo(x, y); else ctx.lineTo(x, y); } };
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      path(0, cut); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 4; ctx.stroke();
+      path(cut, r.pts.length - 1); ctx.strokeStyle = '#fff'; ctx.lineWidth = 8; ctx.stroke(); ctx.strokeStyle = '#2f86ff'; ctx.lineWidth = 5; ctx.stroke();
+      const [ex, ey] = toPx(r.pts[r.pts.length-1][0], r.pts[r.pts.length-1][1]); pin(ex, ey, '#ff5f57');
+    } else if (S.dest) { const [dx, dy] = toPx(S.dest.lat, S.dest.lon); pin(dx, dy, '#ff5f57'); }
+    S.places.slice(0, 8).forEach((p, i) => { const [x, y] = toPx(p.lat, p.lon); pin(x, y, '#ffb347', String(i+1)); });
+    if (S.fix) {
+      const [x, y] = toPx(S.fix.lat, S.fix.lon);
+      const mpp = 156543.03 * Math.cos(rad(S.fix.lat)) / Math.pow(2, z);
+      const ar = (S.fix.acc || 0) / mpp;
+      if (ar > 8) { ctx.beginPath(); ctx.arc(x, y, ar, 0, Math.PI*2); ctx.fillStyle = 'rgba(47,134,255,.15)'; ctx.fill(); ctx.strokeStyle = 'rgba(47,134,255,.5)'; ctx.lineWidth = 1; ctx.stroke(); }
+      if (S.hdg >= 0) { const a = rad(S.hdg) - Math.PI/2; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, 42, a - 0.45, a + 0.45); ctx.closePath(); const g = ctx.createRadialGradient(x, y, 4, x, y, 42); g.addColorStop(0, 'rgba(47,134,255,.6)'); g.addColorStop(1, 'rgba(47,134,255,0)'); ctx.fillStyle = g; ctx.fill(); }
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.fillStyle = '#2f86ff'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(W - 128, H - 18, 128, 18);
+    ctx.fillStyle = '#ccc'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right'; ctx.fillText('© OpenStreetMap', W - 6, H - 5);
+    if (S.pick) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, 24); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = '13px sans-serif'; ctx.fillText('Tik op de kaart om een bestemming te kiezen', 8, 16); }
+  }
+  cv.addEventListener('pointerdown', e => { drag = {x: e.clientX, y: e.clientY, c: center}; moved = false; try { cv.setPointerCapture(e.pointerId); } catch(err) {} });
+  cv.addEventListener('pointermove', e => {
+    if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
+    if (moved) { follow = false; center = {lon: x2lon(lon2x(drag.c.lon, z) - dx, z), lat: y2lat(lat2y(drag.c.lat, z) - dy, z)}; redraw(); }
+  });
+  cv.addEventListener('pointerup', async e => {
+    if (!drag) return; const wasDrag = moved; drag = null;
+    if (wasDrag) return;
+    const rect = cv.getBoundingClientRect(); const p = fromPx(e.clientX - rect.left, e.clientY - rect.top);
+    if (S.pick) {
+      S.pick = false; $('btn-pick').textContent = 'Kies op kaart';
+      setDest({name: 'Gekozen punt', sub: p.lat.toFixed(5) + ', ' + p.lon.toFixed(5), lat: p.lat, lon: p.lon});
+      const info = await reverse(p.lat, p.lon); if (S.dest && S.dest.lat === p.lat) setDest({name: info.name, sub: info.sub, lat: p.lat, lon: p.lon});
+      redraw(); return;
+    }
+    // Tap on a restaurant marker selects it.
+    let best = null;
+    S.places.slice(0, 8).forEach(pl => { const [x, y] = toPx(pl.lat, pl.lon); const d = Math.hypot(x - (e.clientX - rect.left), y - 20 - (e.clientY - rect.top)); if (d < 18 && (!best || d < best.d)) best = {d, pl}; });
+    if (best) { setDest(placeToDest(best.pl)); redraw(); }
+  });
+  cv.addEventListener('pointercancel', () => { drag = null; });
+  window.addEventListener('resize', resize);
+  return {
+    redraw, resize,
+    onFix(){ if (follow && S.fix) center = {lat: S.fix.lat, lon: S.fix.lon}; redraw(); },
+    follow(){ follow = true; if (S.fix) center = {lat: S.fix.lat, lon: S.fix.lon}; z = Math.max(z, 16); redraw(); },
+    fit(){
+      const pts = []; if (S.nav && S.nav.route) for (const p of S.nav.route.pts) pts.push(p); if (S.fix) pts.push([S.fix.lat, S.fix.lon]); if (S.dest) pts.push([S.dest.lat, S.dest.lon]);
+      if (pts.length < 2) { if (pts.length) { center = {lat: pts[0][0], lon: pts[0][1]}; } redraw(); return; }
+      let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for (const [la, lo] of pts) { la0 = Math.min(la0, la); la1 = Math.max(la1, la); lo0 = Math.min(lo0, lo); lo1 = Math.max(lo1, lo); }
+      follow = false; center = {lat: (la0+la1)/2, lon: (lo0+lo1)/2};
+      for (z = 18; z > 3; z--) { const w = lon2x(lo1, z) - lon2x(lo0, z), h = lat2y(la0, z) - lat2y(la1, z); if (w < W - 40 && h < H - 50) break; }
+      redraw();
+    },
+    zoom(d){ z = Math.max(3, Math.min(19, z + d)); redraw(); },
+    center(){ return center; },
+    setCenter(lat, lon, zz){ center = {lat, lon}; if (zz) z = zz; follow = false; redraw(); },
+  };
+})();
+
+// ---------- destination UI ----------
+function setDest(d){
+  S.dest = d; $('dest-box').hidden = !d; $('btn-start').disabled = !d;
+  if (d) { $('dest-name').textContent = d.name; $('dest-sub').textContent = d.sub || ''; const fav = cfg.favs.some(f => Math.abs(f.lat - d.lat) < 1e-5 && Math.abs(f.lon - d.lon) < 1e-5); $('btn-fav').textContent = fav ? '★ Favoriet' : '☆ Favoriet'; }
+  publishNav(); map.redraw();
+}
+function saveRecent(d){
+  cfg.recent = [d].concat(cfg.recent.filter(r => Math.abs(r.lat - d.lat) > 1e-5 || Math.abs(r.lon - d.lon) > 1e-5)).slice(0, 8); saveCfg(); renderRecent();
+}
+function renderFavs(){
+  const box = $('favs'); box.innerHTML = '';
+  cfg.favs.forEach((f, i) => {
+    const c = document.createElement('span'); c.className = 'chip btn'; c.innerHTML = '<span></span><span class="x" title="Verwijder">×</span>';
+    c.firstChild.textContent = f.name; c.firstChild.onclick = () => { setDest(f); map.setCenter(f.lat, f.lon, 15); };
+    c.lastChild.onclick = e => { e.stopPropagation(); cfg.favs.splice(i, 1); saveCfg(); renderFavs(); if (S.dest) setDest(S.dest); };
+    box.appendChild(c);
+  });
+  if (!cfg.favs.length) box.innerHTML = '<span class="small-dim">Nog geen favorieten. Kies een bestemming en tik op ☆ Favoriet.</span>';
+}
+function renderRecent(){
+  const box = $('recent'); box.innerHTML = '';
+  for (const r of cfg.recent) { const b = document.createElement('button'); b.innerHTML = '<span></span><small></small>'; b.firstChild.textContent = r.name; b.lastChild.textContent = r.sub || ''; b.onclick = () => { setDest(r); map.setCenter(r.lat, r.lon, 15); }; box.appendChild(b); }
+  if (!cfg.recent.length) box.innerHTML = '<span class="small-dim">Nog geen recente bestemmingen.</span>';
+}
+function setStatus(kind, text){ $('st-dot').className = 'dot ' + kind; $('st-text').textContent = text; }
+function uiNav(){
+  const nav = S.nav; const card = $('nav-card');
+  card.hidden = !nav && S.state !== 1;
+  $('btn-start').textContent = nav ? 'Navigeer naar deze bestemming' : 'Start navigatie';
+  if (S.state === 1) { $('inst-arrow').innerHTML = ''; $('inst-dist').textContent = '...'; $('inst-text').textContent = 'Route berekenen naar ' + (S.dest ? S.dest.name : ''); $('inst-sub').textContent = ''; $('nav-summary').innerHTML = ''; return; }
+  if (!nav) return;
+  const r = nav.route; const next = r.steps[nav.cur + 1];
+  if (S.state === 3) { $('inst-arrow').innerHTML = arrowSvg('A', 0, '#6fd99a'); $('inst-dist').textContent = 'Aangekomen'; $('inst-text').textContent = nav.dest.name; $('inst-sub').textContent = 'Tik op de bril of op Stop om af te sluiten.'; }
+  else if (next) {
+    $('inst-arrow').innerHTML = arrowSvg(next.code, next.exit, '#eef1f5');
+    $('inst-dist').textContent = nav.distNext != null ? (nav.distNext <= 12 ? 'nu' : fmtDist(nav.distNext)) : '--';
+    $('inst-text').textContent = next.text;
+    const after = r.steps[nav.cur + 2];
+    $('inst-sub').textContent = (S.state === 4 ? S.statusText + ' - ' : '') + (after && next.code !== 'A' ? 'daarna ' + after.text.charAt(0).toLowerCase() + after.text.slice(1) : '');
+  }
+  const remMin = Math.round((nav.remaining || 0) / (r.total || 1) * r.dur / 60);
+  $('nav-summary').innerHTML = '<li><b>' + fmtDist(nav.remaining) + '</b> te gaan, ongeveer <b>' + fmtMin(remMin) + '</b>, aankomst rond <b>' + hhmm(new Date(Date.now() + remMin*60000)) + '</b></li><li>Naar <b>' + esc(nav.dest.name) + '</b> ' + MODE_NAMES[nav.mode] + ' via ' + esc(r.provider) + (nav.offDist != null ? ' &middot; ' + Math.round(nav.offDist) + ' m van de route' : '') + '</li>' + (lastSaid ? '<li class="small-dim">Laatst gezegd: ' + esc(lastSaid) + '</li>' : '');
+}
+function updateGlassText(){ $('glass-text').textContent = S.glassesSeen ? 'Bril: verbonden (' + hhmm(new Date(S.glassesSeen)) + ')' : 'Bril: nog geen contact'; }
+function setMode(m){
+  cfg.mode = m; saveCfg();
+  document.querySelectorAll('#mode-seg button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  renderPlaces(); publishNav();
+  if (S.nav && !S.nav.arrived) startNavigation(S.nav.dest, {reroute: true});
+}
+
+// ---------- bindings ----------
+function bind(){
+  document.querySelectorAll('#mode-seg button').forEach(b => b.onclick = () => setMode(b.dataset.m));
+  $('btn-search').onclick = async () => {
+    const q = $('q').value.trim(); if (!q) return; const box = $('q-results'); box.textContent = 'Zoeken...';
+    try {
+      const list = await geocode(q); box.innerHTML = '';
+      if (!list.length) box.textContent = 'Niets gevonden.';
+      for (const r of list) { const b = document.createElement('button'); b.innerHTML = '<span></span><small></small>'; b.firstChild.textContent = r.name; b.lastChild.textContent = r.sub; b.onclick = () => { setDest(r); box.innerHTML = ''; $('q').value = ''; map.setCenter(r.lat, r.lon, 15); }; box.appendChild(b); }
+    } catch(e) { box.textContent = 'Zoeken mislukt: ' + (e.message || e); }
+  };
+  $('q').onkeydown = e => { if (e.key === 'Enter') $('btn-search').click(); };
+  $('btn-fav').onclick = () => { const d = S.dest; if (!d) return; const i = cfg.favs.findIndex(f => Math.abs(f.lat - d.lat) < 1e-5 && Math.abs(f.lon - d.lon) < 1e-5); if (i >= 0) cfg.favs.splice(i, 1); else cfg.favs.unshift({name: d.name, sub: d.sub || '', lat: d.lat, lon: d.lon}); saveCfg(); renderFavs(); setDest(d); };
+  $('btn-start').onclick = () => { startCompass(); if ('speechSynthesis' in window) { try { speechSynthesis.resume(); } catch(e) {} } startNavigation(S.dest, {}); };
+  $('btn-stop').onclick = stopNavigation;
+  $('btn-reroute').onclick = () => { if (S.nav) startNavigation(S.nav.dest, {reroute: true}); };
+  $('btn-follow').onclick = () => map.follow();
+  $('btn-fit').onclick = () => map.fit();
+  $('btn-zin').onclick = () => map.zoom(1);
+  $('btn-zout').onclick = () => map.zoom(-1);
+  $('btn-pick').onclick = () => { S.pick = !S.pick; $('btn-pick').textContent = S.pick ? 'Annuleer kiezen' : 'Kies op kaart'; map.redraw(); };
+  const sel = $('r-cuisine'); for (const c of CUISINES) { const o = document.createElement('option'); o.value = c.id; o.textContent = c.label; sel.appendChild(o); }
+  sel.value = cfg.rcuisine; $('r-custom-row').hidden = cfg.rcuisine !== 'custom';
+  sel.onchange = () => { cfg.rcuisine = sel.value; $('r-custom-row').hidden = sel.value !== 'custom'; saveCfg(); };
+  $('r-source').value = cfg.rsource; $('r-source').onchange = () => { cfg.rsource = $('r-source').value; saveCfg(); };
+  $('r-min').value = cfg.rmin; $('r-min').onchange = () => { cfg.rmin = $('r-min').value; saveCfg(); };
+  $('r-dist').value = cfg.rdist; $('r-dist').onchange = () => { cfg.rdist = $('r-dist').value; saveCfg(); };
+  $('r-open').checked = cfg.ropen; $('r-open').onchange = () => { cfg.ropen = $('r-open').checked; saveCfg(); };
+  $('btn-rsearch').onclick = () => { startGps(); searchRestaurants(); };
+  $('s-voice').checked = cfg.voice; $('s-voice').onchange = () => { cfg.voice = $('s-voice').checked; saveCfg(); };
+  $('btn-voice-test').onclick = () => { cfg.voice = true; $('s-voice').checked = true; saveCfg(); loadVoices(); say('Over 100 meter, sla linksaf naar de Kerkstraat.', true); };
+  $('s-voicesel').onchange = () => { cfg.voiceName = $('s-voicesel').value; saveCfg(); };
+  $('s-router').value = cfg.router; $('s-router').onchange = () => { cfg.router = $('s-router').value; saveCfg(); };
+  $('s-gkey').value = cfg.gkey; $('s-gkey').onchange = () => { cfg.gkey = $('s-gkey').value.trim(); saveCfg(); };
+  $('s-takey').value = cfg.takey; $('s-takey').onchange = () => { cfg.takey = $('s-takey').value.trim(); saveCfg(); };
+  for (const [id, key] of [['s-rotate','rotate'], ['s-streets','streets'], ['s-reroute','reroute'], ['s-wake','wake']]) {
+    $(id).checked = cfg[key]; $(id).onchange = () => { cfg[key] = $(id).checked; saveCfg(); publishNav(true); if (key === 'streets' && cfg.streets) maybeStreets(true); if (key === 'wake') wakeLock(!!S.nav); };
+  }
+  $('btn-demo').onclick = toggleDemo;
+  document.querySelectorAll('#mode-seg button').forEach(b => b.classList.toggle('on', b.dataset.m === cfg.mode));
+  renderFavs(); renderRecent(); loadVoices();
+}
+
+// ---------- glasses messages ----------
+if (MC && MC.onFromApp) {
+  const off = MC.onFromApp(m => {
+    if (!m || typeof m !== 'object') return;
+    S.glassesSeen = Date.now(); updateGlassText();
+    if (m.type === 'sync') { if (S.routeMsg) sendOrdered(S.routeMsg); if (S.streetsMsg) sendOrdered(S.streetsMsg); if (S.placesMsg) sendOrdered(S.placesMsg); publishNav(true); startGps(); }
+    else if (m.type === 'go') { const p = S.places[m.i | 0]; S.placesMsg = null; if (p) { setDest(placeToDest(p)); startNavigation(S.dest, {}); } }
+    else if (m.type === 'close') { S.placesMsg = null; }
+    else if (m.type === 'done') { stopNavigation(); }
+  });
+  if (typeof off === 'function') window.addEventListener('pagehide', off);
+}
+// Test hooks: drive fixes and read state without a real phone.
+window.__wegwijs = {S, cfg, acceptFix, startNavigation, stopNavigation, publishNav, searchRestaurants, buildNav, setDest, map};
+
+// ---------- start ----------
+(async function start(){
+  const saved = await load('cfg');
+  if (saved && typeof saved === 'object') cfg = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), saved);
+  window.__wegwijs.cfg = cfg;
+  bind(); map.resize(); updateGlassText();
+  const prev = await load('nav');
+  if (prev && prev.dest && Date.now() - (prev.startedAt || 0) < 3 * 3600000) {
+    cfg.mode = prev.mode || cfg.mode; document.querySelectorAll('#mode-seg button').forEach(b => b.classList.toggle('on', b.dataset.m === cfg.mode));
+    setDest(prev.dest); setStatus('warn', 'Vorige navigatie naar ' + prev.dest.name + ' wordt hervat zodra er een gps-positie is.');
+    startGps();
+    const fix = await waitForFix(30000);
+    if (fix && haversine(fix, prev.dest) > 60) startNavigation(prev.dest, {silent: true});
+    else { save('nav', null); setStatus('', 'Klaar om te vertrekken'); }
+  } else {
+    startGps();
+  }
+  publishNav(true);
+  setInterval(() => { if (S.nav || S.state) publishNav(); }, 30000);
+})();
+})();
+</script>

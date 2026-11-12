@@ -30,3 +30,45 @@ node test/sim.mjs Glance.html test/out/snapshot.json test/out   # bril-simulator
 node test/shot.cjs test/out                    # SVG → PNG + overzichtsblad
 ```
 Nog niet op echte bril getest; echte HLN/Yahoo-feeds niet live geverifieerd.
+
+# Wegwijs – navigatie-app voor Mira-glasses (tweede app in deze repo)
+
+Aparte app naast Glance; verschijnt als eigen kaart in de Mira-app en als eigen item in de zijbalk.
+
+## Bouwen en valideren
+```sh
+python3 Wegwijs/package.py Wegwijs.html
+python3 Wegwijs/validate.py Wegwijs.html
+```
+Lever alleen `Wegwijs.html` op (zelfde installatiestappen als Glance).
+
+## Structuur
+- `Wegwijs/wegwijs.rs` – bril-app (app-naam "Wegwijs"). Schermen: navigatie (vectorkaart koers-boven met route, straten,
+  positie-chevron, pijlpaneel rechtsboven met afstand/straat/"daarna", voetbalk met resterende afstand, tijd, aankomst,
+  klok en batterij), stappenlijst (swipe), overzicht van de hele route (tik; automatisch 8 s bij een nieuwe route),
+  restaurant-keuzekaarten (swipe = volgende, tik = navigeer), aangekomen-scherm, idle-scherm.
+- `Wegwijs/companion.html` – telefoon: bestemming zoeken (Google Places met sleutel, anders Photon, dan Nominatim),
+  favorieten/recent, kiezen op kaart, routering (Valhalla standaard, Google Routes met sleutel, OSRM reserve) voor
+  te voet / fiets / auto, gps-volgen met koers (gps-koers, traject, kompas), voortgang, afslag-aankondigingen via
+  `speechSynthesis` (instelbaar), herberekenen bij afwijken, aankomst, canvas-kaart met OSM-tegels, Overpass-straten
+  voor de bril, restaurantzoeker (Tripadvisor Content API met sleutel, Google Places met sleutel, anders
+  OpenStreetMap zonder beoordelingen) met filters op sterren, afstand, keuken en "nu open", demo-wandeling.
+- Protocol telefoon → bril (JSON `{type, d}`, `d` = regels `TAG|veld|…`, frame = meters t.o.v. de eerste gps-fix,
+  x oost / y noord, punten delta-gecodeerd als zigzag-varints met 5 bits per teken in `A-Za-z0-9-_`):
+  - `nav` (snapshot, ~1/s): `T|status|tekst` (0 idle, 1 route berekenen, 2 onderweg, 3 aangekomen, 4 van de route,
+    5 geen gps, 6 fout), `S|x|y|koers|nauwkeurigheid|beweegt`, `M|code|afstand|straat|rotonde-afslag`,
+    `A|code|straat` (daarna), `R|rest_m|rest_min|aankomst|totaal_m`, `D|bestemming`, `P|stap|segment`, `V|modus|draait`.
+  - `route` (geordend): `F|id|overzicht`, `G|punten`, `K|puntindex|code|lengte|afslag|tekst` per stap, `D|naam|m|min`.
+  - `streets` (geordend): `L|punten` per straat. `places` (geordend): `F|n`, `Q|naam|sterren×10|aantal|info|afstand|open|adres`.
+  - `clear`. Manoeuvre-codes: S rechtdoor, L/R links/rechts, l/r flauw, H/h scherp, U/u keren, K/k aanhouden,
+    O rotonde, A bestemming, D vertrek, T trap, F veerboot.
+- Bril → telefoon: `{"type":"sync"}`, `{"type":"go","i":n}` (restaurant gekozen), `{"type":"close"}`, `{"type":"done"}`.
+
+## Testen zonder bril
+```sh
+node test/wegwijs-phone.cjs Wegwijs.html test/out   # telefoon met nep-gps en opgenomen API-antwoorden → messages.json, marks.json, screenshots
+node test/wegwijs-sim.mjs Wegwijs.html test/out test/out/sim   # bril-simulator → SVG per scherm
+node test/shot.cjs test/out/sim                       # SVG → PNG + overzichtsblad
+```
+Fixtures in `test/fixtures/` zijn echte antwoorden van Valhalla, OSRM, Photon en Nominatim (Gent); Overpass en
+Tripadvisor zijn in de test synthetisch. Nog niet op een echte bril getest; Tripadvisor/Google alleen met eigen sleutel.
