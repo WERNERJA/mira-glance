@@ -12,6 +12,8 @@ const strip = m => { const c = Object.assign({}, m); delete c.__t; delete c.__sn
 const routeMsg = strip(sent.find(m => m.type === 'route'));
 const streetsMsg = strip(sent.find(m => m.type === 'streets'));
 const placesMsg = strip(sent.find(m => m.type === 'places'));
+const sightsMsg = strip(sent.filter(m => m.type === 'places')[1] || sent.find(m => m.type === 'places'));
+let transcript = ''; let transcriptFinal = 0; const serviceCalls = [];
 let mem; const u8 = () => new Uint8Array(mem.buffer);
 const enc = new TextEncoder(), dec = new TextDecoder();
 let nextId = 1; const responses = new Map(); const outbound = [];
@@ -39,6 +41,8 @@ Object.assign(imports.mira, {
     const payload = u8().slice(p, p + n); const id = nextId++;
     let resp = new Uint8Array(0);
     if (method === 0x64) resp = new Uint8Array(le32(7));
+    else if (method === 0x01 || method === 0x02) { serviceCalls.push(method); resp = new Uint8Array(0); }
+    else if (method === 0x03) resp = new Uint8Array([1, transcriptFinal, ...enc.encode(transcript)]);
     else if (method === 0x62) {
       const dv = new DataView(payload.buffer); const rev = dv.getUint32(0, true), off = dv.getUint16(4, true);
       if (inbound.rev === 0) resp = new Uint8Array([...le32(0), 0, 0, 0xff, 0xff]);
@@ -112,12 +116,30 @@ X.app_event(0); tick(60);
 deliver(nav('nav-offroute')); tick(40);
 shot('van-route-af');
 deliver(placesMsg); tick(10);
-shot('restaurant-1');
-X.app_event(2); tick(5);
-shot('restaurant-2');
-X.app_event(1); X.app_event(1); tick(5);        // wrap to the closing card
-shot('restaurant-sluiten');
-X.app_event(2); tick(5); X.app_event(0); tick(40); // choose the first proposal -> go message
+shot('restaurants-lijst');
+X.app_event(2); tick(5);                        // swipe: second proposal selected
+shot('restaurants-lijst-2');
+X.app_event(0); tick(5);                        // tap: detail card
+shot('restaurant-detail');
+X.app_event(9); tick(5);                        // long click: back to the list
+X.app_event(1); tick(5); X.app_event(0); tick(40); // first proposal, tap detail, then tap again -> go message
+X.app_event(0); tick(40);
+deliver(sightsMsg); tick(10);
+shot('bezienswaardigheden-lijst');
+X.app_event(0); tick(5);
+shot('bezienswaardigheid-detail');
+X.app_event(9); tick(5); X.app_event(9); tick(40); // long click twice: list, then close
+// Hold-to-talk: hold start, transcript grows, release, final text, message to phone.
+X.app_event(10); tick(3);
+shot('luisteren-leeg');
+transcript = 'wandel naar het'; tick(12);
+transcript = 'wandel naar het station van Gent'; tick(12);
+shot('luisteren-tekst');
+X.app_event(12); tick(6); transcriptFinal = 1; tick(12);
+shot('luisteren-verzonden');
+deliver(JSON.stringify({type: 'toast', d: 'Zoeken: het station van Gent'})); tick(5);
+shot('toast');
+tick(200);
 deliver(nav('nav-near-end')); tick(60);
 shot('bijna-aangekomen');
 deliver(nav('nav-arrived')); tick(10);
@@ -129,5 +151,5 @@ shot('idle-na-stop');
 deliver(routeMsg); tick(5); X.app_event(0); tick(20);
 deliver(nav('nav-long').replace(/S\|(-?\d+)\|(-?\d+)\|\d+/, 'S|$1|$2|-1')); tick(60);
 shot('volgen-zonder-koers');
-report.frames = frames;
+report.frames = frames; report.serviceCalls = serviceCalls;
 console.log(JSON.stringify(report, null, 1));

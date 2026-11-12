@@ -36,9 +36,19 @@ const TA_PLACES = [
   {id: '105', name: 'Wok Palace', rating: '3.5', reviews: '90', cuisine: ['chinese', 'asian'], price: '€', street: 'Kortrijksesteenweg 10', lat: 51.0400, lon: 3.7150},
   {id: '106', name: 'Kimchi House', rating: '4.5', reviews: '77', cuisine: ['korean', 'asian'], price: '€€', street: 'Nederkouter 5', lat: 51.0480, lon: 3.7210},
 ];
+const TA_SIGHTS = [
+  {id: '201', name: 'Gravensteen', rating: '4.5', reviews: '9800', cats: ['Kastelen', 'Historische bezienswaardigheden'], street: 'Sint-Veerleplein 11', lat: 51.0574, lon: 3.7207, rank: '#1 van 210 bezienswaardigheden in Gent', desc: 'Middeleeuwse gravenburcht uit 1180 met wapenmuseum en uitzicht over de stad vanaf de weergang.'},
+  {id: '202', name: 'Sint-Baafskathedraal', rating: '4.5', reviews: '7600', cats: ['Kerken en kathedralen'], street: 'Sint-Baafsplein', lat: 51.0530, lon: 3.7270, rank: '#2 van 210 bezienswaardigheden in Gent', desc: 'Gotische kathedraal met het Lam Gods van de gebroeders Van Eyck.'},
+  {id: '203', name: 'MSK Museum voor Schone Kunsten', rating: '4.5', reviews: '2100', cats: ['Kunstmusea'], street: 'Fernand Scribedreef 1', lat: 51.0376, lon: 3.7220, rank: '#5 van 210 bezienswaardigheden in Gent', desc: 'Oude en moderne kunst van de middeleeuwen tot de twintigste eeuw in het Citadelpark.'},
+  {id: '204', name: 'Belfort van Gent', rating: '4.5', reviews: '4300', cats: ['Torens en uitzichtpunten', 'Historische bezienswaardigheden'], street: 'Sint-Baafsplein', lat: 51.0536, lon: 3.7249, rank: '#4 van 210 bezienswaardigheden in Gent', desc: 'Werelderfgoedtoren van 91 meter met beiaard en draak; lift naar het uitzichtplatform.'},
+];
+const taSight = p => ({location_id: p.id, name: p.name, web_url: 'https://www.tripadvisor.com/Attraction_Review-' + p.id, address_obj: {street1: p.street, city: 'Gent', address_string: p.street + ', 9000 Gent'}, latitude: String(p.lat), longitude: String(p.lon), rating: p.rating, num_reviews: p.reviews, description: p.desc,
+  ranking_data: {ranking_string: p.rank}, subcategory: p.cats.map(c => ({name: c.toLowerCase(), localized_name: c})), groups: [{name: 'Sights & Landmarks', localized_name: 'Bezienswaardigheden en monumenten', categories: p.cats.map(c => ({name: c.toLowerCase(), localized_name: c}))}],
+  hours: {periods: [0,1,2,3,4,5,6].map(d => ({open: {day: d, time: '1000'}, close: {day: d, time: '1800'}})), weekday_text: ['maandag: 10:00 - 18:00', 'dinsdag: 10:00 - 18:00', 'woensdag: 10:00 - 18:00', 'donderdag: 10:00 - 18:00', 'vrijdag: 10:00 - 18:00', 'zaterdag: 10:00 - 18:00', 'zondag: 10:00 - 18:00']}});
 const taDetails = p => ({location_id: p.id, name: p.name, web_url: 'https://www.tripadvisor.com/Restaurant_Review-' + p.id, address_obj: {street1: p.street, city: 'Gent', address_string: p.street + ', 9000 Gent'}, latitude: String(p.lat), longitude: String(p.lon), rating: p.rating, num_reviews: p.reviews, price_level: p.price,
   cuisine: p.cuisine.map(c => ({name: c, localized_name: {japanese: 'Japans', sushi: 'Sushi', asian: 'Aziatisch', thai: 'Thais', belgian: 'Belgisch', european: 'Europees', vietnamese: 'Vietnamees', soups: 'Soepen', chinese: 'Chinees', korean: 'Koreaans'}[c] || c})),
-  hours: {periods: [0,1,2,3,4,5,6].map(d => ({open: {day: d, time: '0000'}, close: {day: d, time: '2359'}}))}});
+  ranking_data: {ranking_string: '#' + (12 + +p.id % 100) + ' van 850 restaurants in Gent'}, description: p.name + ' serveert verse gerechten in een gezellig interieur; reserveren aangeraden in het weekend.',
+  hours: {periods: [0,1,2,3,4,5,6].map(d => ({open: {day: d, time: '1130'}, close: {day: d, time: '2230'}})), weekday_text: ['maandag: 11:30 - 22:30', 'dinsdag: 11:30 - 22:30', 'woensdag: 11:30 - 22:30', 'donderdag: 11:30 - 22:30', 'vrijdag: 11:30 - 23:00', 'zaterdag: 11:30 - 23:00', 'zondag: 11:30 - 22:30']}});
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, geolocation: { latitude: 51.0543, longitude: 3.7174, accuracy: 9 }, permissions: ['geolocation'], locale: 'nl-BE' });
@@ -68,9 +78,10 @@ const taDetails = p => ({location_id: p.id, name: p.name, web_url: 'https://www.
     if (u.includes('nominatim.openstreetmap.org/search')) return route.fulfill({ body: fx('nominatim.json'), contentType: 'application/json' });
     if (u.includes('overpass')) return route.fulfill({ json: overpassFixture() });
     if (u.includes('api.content.tripadvisor.com')) {
-      if (u.includes('nearby_search') || u.includes('/location/search')) return route.fulfill({ json: { data: TA_PLACES.map(p => ({location_id: p.id, name: p.name, distance: '0.5', address_obj: {address_string: p.street + ', Gent'}})) } });
-      const m = /location\/(\d+)\/details/.exec(u); const p = m && TA_PLACES.find(x => x.id === m[1]);
-      return p ? route.fulfill({ json: taDetails(p) }) : route.fulfill({ status: 404, body: '{}' });
+      const sights = u.includes('category=attractions');
+      if (u.includes('nearby_search') || u.includes('/location/search')) return route.fulfill({ json: { data: (sights ? TA_SIGHTS : TA_PLACES).map(p => ({location_id: p.id, name: p.name, distance: '0.5', address_obj: {address_string: p.street + ', Gent'}})) } });
+      const m = /location\/(\d+)\/details/.exec(u); const p = m && TA_PLACES.find(x => x.id === m[1]); const q = m && TA_SIGHTS.find(x => x.id === m[1]);
+      return p ? route.fulfill({ json: taDetails(p) }) : q ? route.fulfill({ json: taSight(q) }) : route.fulfill({ status: 404, body: '{}' });
     }
     if (u.includes('tile.openstreetmap.org')) return route.continue().catch(() => route.fulfill({ body: fx('tile.png'), contentType: 'image/png' }));
     return route.fulfill({ status: 404, body: '' });
@@ -124,6 +135,19 @@ const taDetails = p => ({location_id: p.id, name: p.name, web_url: 'https://www.
   await page.evaluate(() => window.__fromApp({ type: 'go', i: 0 }));
   await page.waitForFunction(() => window.__sent.filter(m => m.type === 'route').length >= 2, null, { timeout: 15000 });
   await page.waitForTimeout(500);
+  // Spoken commands from the glasses.
+  await page.evaluate(() => window.__fromApp({ type: 'say', text: 'Wat is er te zien in de buurt?' }));
+  await page.waitForFunction(() => window.__sent.filter(m => m.type === 'places').length >= 2, null, { timeout: 15000 });
+  await page.waitForTimeout(400);
+  await shot('phone-06-bezienswaardigheden');
+  await page.evaluate(() => window.__fromApp({ type: 'say', text: 'Zoek een goed Aziatisch restaurant binnen 3 km.' }));
+  await page.waitForFunction(() => window.__sent.filter(m => m.type === 'places').length >= 3, null, { timeout: 15000 });
+  await page.evaluate(() => window.__wegwijs.stopNavigation());
+  await page.evaluate(() => window.__fromApp({ type: 'say', text: 'Fiets naar Sint-Pietersstation Gent' }));
+  await page.waitForFunction(() => window.__sent.filter(m => m.type === 'route').length >= 3, null, { timeout: 15000 });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => window.__fromApp({ type: 'say', text: 'blabla' }));
+  await page.waitForTimeout(400);
   const sent = await page.evaluate(() => window.__sent);
   const spoken = await page.evaluate(() => window.__spoken || []);
   fs.writeFileSync(path.join(outDir, 'messages.json'), JSON.stringify(sent, null, 1));
@@ -136,6 +160,9 @@ const taDetails = p => ({location_id: p.id, name: p.name, web_url: 'https://www.
   console.log('--- route message head:\n' + sent.find(m => m.type === 'route').d.split('\n').slice(0, 6).join('\n').slice(0, 600));
   console.log('--- nav marks:'); for (const [k, v] of Object.entries(marks)) console.log(k, '=>', v ? v.d.replace(/\n/g, ' | ') : 'none');
   console.log('--- spoken:\n' + spoken.join('\n'));
+  console.log('--- toasts:', sent.filter(m => m.type === 'toast').map(m => m.d).join(' | '));
+  console.log('--- places 2 (bezienswaardigheden):\n' + sent.filter(m => m.type === 'places')[1].d);
+  console.log('--- last nav mode:', sent.filter(m => m.type === 'nav').pop().d.split('\n').pop());
   console.log('--- network (unique hosts):', [...new Set(log.map(u => u.split('/')[2]))].join(', '));
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

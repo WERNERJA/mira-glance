@@ -59,7 +59,7 @@ p.small{font-size:13px;margin:6px 0 0}
 </style>
 <main id="mira-companion-root">
   <h1>Wegwijs</h1>
-  <p class="sub">Navigatie op je Mira-bril: een pijl met de afstand tot de volgende afslag, een kaart die met je looprichting meedraait en gesproken aanwijzingen. Op de bril: swipe voor de stappenlijst, tik voor het overzicht van de hele route.</p>
+  <p class="sub">Navigatie op je Mira-bril: een pijl met de afstand tot de volgende afslag, een kaart die met je looprichting meedraait en gesproken aanwijzingen. Op de bril: houd de touchbar ingedrukt en zeg bv. "wandel naar het station" of "zoek een Aziatisch restaurant"; swipe voor de stappenlijst, tik voor het overzicht van de hele route.</p>
 
   <section class="card">
     <div class="row"><div class="status grow"><span class="dot" id="st-dot"></span><span id="st-text">Klaar om te vertrekken</span></div></div>
@@ -92,15 +92,17 @@ p.small{font-size:13px;margin:6px 0 0}
   </section>
 
   <section class="card">
-    <h2>Restaurant zoeken</h2>
+    <h2>Restaurants en bezienswaardigheden</h2>
+    <div class="seg" id="kind-seg" style="margin:0 0 4px"><button data-k="r" class="on">Restaurants</button><button data-k="a">Bezienswaardigheden</button></div>
     <div class="grid2">
       <label class="small">Bron<select id="r-source"><option value="auto">Automatisch</option><option value="ta">Tripadvisor</option><option value="google">Google</option><option value="osm">OpenStreetMap</option></select></label>
       <label class="small">Minimum sterren<select id="r-min"><option value="0">Alle</option><option value="3.5">3,5 of meer</option><option value="4">4 of meer</option><option value="4.5">4,5 of meer</option></select></label>
       <label class="small">Maximale afstand<select id="r-dist"><option value="1">1 km</option><option value="2">2 km</option><option value="5">5 km</option><option value="10">10 km</option><option value="20">20 km</option></select></label>
-      <label class="small">Keuken<select id="r-cuisine"></select></label>
+      <label class="small" id="r-cuisine-label">Keuken<select id="r-cuisine"></select></label>
+      <label class="small" id="r-akind-label" hidden>Soort<select id="r-akind"></select></label>
     </div>
     <div class="row" id="r-custom-row" hidden style="margin-top:8px"><input type="text" id="r-custom" class="grow" placeholder="bv. sushi, tapas, friet"></div>
-    <div class="row" style="margin-top:10px"><label class="chip" style="margin:0"><input type="checkbox" id="r-open"> Nu open</label><span class="grow"></span><button class="primary" id="btn-rsearch">Zoek restaurants</button></div>
+    <div class="row" style="margin-top:10px"><label class="chip" style="margin:0"><input type="checkbox" id="r-open"> Nu open</label><span class="grow"></span><button class="primary" id="btn-rsearch">Zoek</button></div>
     <div id="r-status" class="small-dim" style="margin-top:8px"></div>
     <div id="r-results"></div>
   </section>
@@ -131,7 +133,7 @@ const $ = id => document.getElementById(id);
 const DEFAULTS = {
   mode:'w', voice:true, voiceName:'', router:'valhalla', gkey:'', takey:'',
   rotate:true, streets:true, reroute:true, wake:true,
-  favs:[], recent:[], rsource:'auto', rmin:'4', rdist:'5', rcuisine:'all', ropen:false,
+  favs:[], recent:[], rsource:'auto', rmin:'4', rdist:'5', rcuisine:'all', ropen:false, pkind:'r', akind:'all',
 };
 let cfg = JSON.parse(JSON.stringify(DEFAULTS));
 const S = {
@@ -166,6 +168,13 @@ const CUISINES = [
   {id:'custom', label:'Eigen trefwoord...', q:'', ta:[], keys:[]},
 ];
 const SRC_NAMES = {ta:'Tripadvisor', google:'Google', osm:'OpenStreetMap'};
+const AKINDS = [
+  {id:'all', label:'Alles', q:'bezienswaardigheden', ta:[''], keys:[]},
+  {id:'museum', label:'Musea en kunst', q:'museum', ta:['museum'], keys:['museum','musea','galer','gallery','kunst','art ']},
+  {id:'monument', label:'Monumenten en gebouwen', q:'monumenten en bezienswaardigheden', ta:['monument','kerk'], keys:['monument','kerk','church','kathedra','cathedral','kasteel','castle','histor','landmark','bezienswaardig','architect','plein','square','toren','tower','belfort','abdij','abbey','begijnhof','gebouw','building','brug','bridge']},
+  {id:'nature', label:'Natuur en parken', q:'park', ta:['park','natuur'], keys:['park','tuin','garden','natuur','nature','bos','forest','strand','beach','water','reservaat','zoo','dierentuin']},
+  {id:'fun', label:'Uitstappen en vermaak', q:'attracties', ta:['attractie'], keys:['pretpark','amusement','theme','escape','bowling','cinema','bioscoop','theater','brouwerij','brewery','rondvaart','boat','tour','markt','market','winkel','shopping','spa','wellness']},
+];
 const GPRICE = {PRICE_LEVEL_FREE:'gratis', PRICE_LEVEL_INEXPENSIVE:'€', PRICE_LEVEL_MODERATE:'€€', PRICE_LEVEL_EXPENSIVE:'€€€', PRICE_LEVEL_VERY_EXPENSIVE:'€€€€'};
 
 // ---------- storage ----------
@@ -764,60 +773,72 @@ async function taSearch(f){
   const base = 'https://api.content.tripadvisor.com/api/v1';
   const q = p => base + p + (p.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key) + '&language=nl';
   const seen = new Map(); const add = (j, via) => { for (const d of (j && j.data) || []) if (d.location_id && !seen.has(d.location_id)) seen.set(d.location_id, via); };
-  const ll = f.lat.toFixed(6) + ',' + f.lon.toFixed(6);
-  try { add(await get(q('/location/nearby_search?latLong=' + ll + '&category=restaurants&radius=' + f.radiusKm + '&radiusUnit=km'), true, {accept:'application/json'}), false); }
+  const ll = f.lat.toFixed(6) + ',' + f.lon.toFixed(6); const cat = f.kind === 'a' ? 'attractions' : 'restaurants';
+  try { add(await get(q('/location/nearby_search?latLong=' + ll + '&category=' + cat + '&radius=' + f.radiusKm + '&radiusUnit=km'), true, {accept:'application/json'}), false); }
   catch(e) { if (/HTTP (401|403)/.test(e.message)) throw new Error('Tripadvisor weigert de sleutel (controleer de sleutel en zet de referrer-beperking uit)'); throw e; }
-  const terms = f.cuisine.id === 'custom' ? [f.custom] : f.cuisine.ta;
-  for (const term of terms.slice(0, 2)) { if (!term) continue; try { add(await get(q('/location/search?searchQuery=' + encodeURIComponent(term + ' restaurant') + '&category=restaurants&latLong=' + ll + '&radius=' + f.radiusKm + '&radiusUnit=km'), true, {accept:'application/json'}), true); } catch(e) {} }
+  const terms = f.kind === 'a' ? f.akind.ta : f.cuisine.id === 'custom' ? [f.custom] : f.cuisine.ta;
+  for (const term of terms.slice(0, 2)) { if (!term) continue; try { add(await get(q('/location/search?searchQuery=' + encodeURIComponent(f.kind === 'a' ? term : term + ' restaurant') + '&category=' + cat + '&latLong=' + ll + '&radius=' + f.radiusKm + '&radiusUnit=km'), true, {accept:'application/json'}), true); } catch(e) {} }
   const ids = [...seen.keys()].slice(0, 16);
   const details = await Promise.all(ids.map(id => get(q('/location/' + id + '/details?currency=EUR'), true, {accept:'application/json'}).then(d => ({d, via: seen.get(id)})).catch(() => null)));
   return details.filter(Boolean).map(({d, via}) => {
-    const lat = +d.latitude, lon = +d.longitude; const cuisines = (d.cuisine || []).map(c => c.localized_name || c.name).filter(Boolean);
+    const lat = +d.latitude, lon = +d.longitude;
+    const cats = f.kind === 'a' ? (d.subcategory || []).concat(...(d.groups || []).map(g => g.categories || [])) : (d.cuisine || []);
+    const cuisines = [...new Set(cats.map(c => c.localized_name || c.name).filter(Boolean))];
     const ao = d.address_obj || {};
     return {name: d.name || '', lat, lon, rating: d.rating ? +d.rating : null, reviews: d.num_reviews ? +d.num_reviews : 0, cuisines,
-      keys: (d.cuisine || []).map(c => String(c.name || '').toLowerCase().replace(/_/g, ' ')), price: d.price_level || '',
+      keys: cats.map(c => String(c.name || '').toLowerCase().replace(/_/g, ' ')), price: d.price_level || '',
       addr: ao.street1 ? ao.street1 + (ao.city ? ', ' + ao.city : '') : (ao.address_string || ''), open: openFromHours(d.hours), url: d.web_url, source: 'Tripadvisor', via,
+      rank: (d.ranking_data && d.ranking_data.ranking_string) || '', hours: todayHours(d.hours), desc: d.description || '',
       dist: isFinite(lat) && isFinite(lon) ? Math.round(haversine(f, {lat, lon})) : 1e9};
   });
 }
 async function googlePlaces(f){
   if (!cfg.gkey) throw new Error('geen Google-sleutel ingesteld (zie Instellingen)');
-  const body = {textQuery: f.cuisine.id === 'custom' ? f.custom + ' restaurant' : f.cuisine.q, languageCode:'nl', pageSize: 20, locationBias:{circle:{center:{latitude: f.lat, longitude: f.lon}, radius: Math.min(50000, f.radiusKm*1000)}}};
+  const query = f.kind === 'a' ? f.akind.q : f.cuisine.id === 'custom' ? f.custom + ' restaurant' : f.cuisine.q;
+  const body = {textQuery: query, languageCode:'nl', pageSize: 20, locationBias:{circle:{center:{latitude: f.lat, longitude: f.lon}, radius: Math.min(50000, f.radiusKm*1000)}}};
   if (f.minRating) body.minRating = Math.min(4.5, Math.floor(f.minRating*2)/2);
   if (f.openNow) body.openNow = true;
-  if (f.cuisine.id === 'all') body.includedType = 'restaurant';
-  const j = await post('https://places.googleapis.com/v1/places:searchText', body, {'X-Goog-Api-Key': cfg.gkey, 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.primaryType,places.primaryTypeDisplayName,places.currentOpeningHours.openNow,places.googleMapsUri'});
+  if (f.kind === 'a' && f.akind.id === 'all') body.includedType = 'tourist_attraction';
+  if (f.kind !== 'a' && f.cuisine.id === 'all') body.includedType = 'restaurant';
+  const j = await post('https://places.googleapis.com/v1/places:searchText', body, {'X-Goog-Api-Key': cfg.gkey, 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.primaryType,places.primaryTypeDisplayName,places.currentOpeningHours.openNow,places.currentOpeningHours.weekdayDescriptions,places.editorialSummary,places.googleMapsUri'});
   return (j.places || []).map(p => {
     const lat = p.location.latitude, lon = p.location.longitude; const typeName = (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '';
     return {name: (p.displayName && p.displayName.text) || '', lat, lon, rating: p.rating || null, reviews: p.userRatingCount || 0, cuisines: typeName ? [typeName] : [],
       keys: [String(p.primaryType || '').toLowerCase().replace(/_/g, ' '), typeName.toLowerCase()], price: GPRICE[p.priceLevel] || '', addr: (p.formattedAddress || '').replace(/, (België|Nederland)$/, ''),
-      open: p.currentOpeningHours ? (p.currentOpeningHours.openNow ? 1 : 2) : 0, url: p.googleMapsUri, source: 'Google', via: f.cuisine.id !== 'all', dist: Math.round(haversine(f, {lat, lon}))};
+      open: p.currentOpeningHours ? (p.currentOpeningHours.openNow ? 1 : 2) : 0, url: p.googleMapsUri, source: 'Google', via: f.kind === 'a' ? f.akind.id !== 'all' : f.cuisine.id !== 'all',
+      hours: todayHours({weekday_text: p.currentOpeningHours && p.currentOpeningHours.weekdayDescriptions}), desc: (p.editorialSummary && p.editorialSummary.text) || '', dist: Math.round(haversine(f, {lat, lon}))};
   });
 }
 async function osmPlaces(f){
-  const q = '[out:json][timeout:20];nwr["amenity"~"^(restaurant|fast_food|food_court)$"]["name"](around:' + Math.round(f.radiusKm*1000) + ',' + f.lat.toFixed(6) + ',' + f.lon.toFixed(6) + ');out center tags 120;';
+  const around = '(around:' + Math.round(f.radiusKm*1000) + ',' + f.lat.toFixed(6) + ',' + f.lon.toFixed(6) + ')';
+  const q = f.kind === 'a'
+    ? '[out:json][timeout:20];(nwr["tourism"~"^(attraction|museum|viewpoint|artwork|gallery|zoo|theme_park|castle)$"]["name"]' + around + ';nwr["historic"]["name"]' + around + ';nwr["leisure"~"^(park|garden|nature_reserve)$"]["name"]' + around + ';);out center tags 120;'
+    : '[out:json][timeout:20];nwr["amenity"~"^(restaurant|fast_food|food_court)$"]["name"]' + around + ';out center tags 120;';
   let j = null;
   for (const host of OVERPASS) { try { j = await post(host, 'data=' + encodeURIComponent(q), {'Content-Type':'application/x-www-form-urlencoded'}); if (j && j.elements) break; } catch(e) { j = null; } }
   if (!j) throw new Error('OpenStreetMap (Overpass) antwoordt niet');
   return j.elements.map(e => {
     const t = e.tags || {}; const lat = e.lat != null ? e.lat : e.center && e.center.lat; const lon = e.lon != null ? e.lon : e.center && e.center.lon;
-    const cuisines = String(t.cuisine || '').split(/;\s*/).filter(Boolean).map(c => c.replace(/_/g, ' '));
-    return {name: t.name, lat, lon, rating: null, reviews: 0, cuisines, keys: cuisines.map(c => c.toLowerCase()), price: '',
+    const cuisines = f.kind === 'a' ? [t.tourism, t.historic && 'historisch ' + t.historic, t.leisure].filter(Boolean).map(c => c.replace(/_/g, ' ')) : String(t.cuisine || '').split(/;\s*/).filter(Boolean).map(c => c.replace(/_/g, ' '));
+    return {name: t.name, lat, lon, rating: null, reviews: 0, cuisines, keys: cuisines.map(c => c.toLowerCase()), price: '', desc: t.description || t['description:nl'] || '', hours: t.opening_hours ? clean(t.opening_hours, 22) : '',
       addr: [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ') + (t['addr:city'] ? ', ' + t['addr:city'] : ''), open: 0,
       url: 'https://www.openstreetmap.org/' + e.type + '/' + e.id, source: 'OpenStreetMap', via: false, dist: isFinite(lat) && isFinite(lon) ? Math.round(haversine(f, {lat, lon})) : 1e9};
   }).filter(p => isFinite(p.lat) && p.name);
 }
 function cuisineMatch(p, f){
+  if (f.kind === 'a') { if (f.akind.id === 'all') return true; const hay = (p.keys.join(' ') + ' ' + p.cuisines.join(' ') + ' ' + p.name).toLowerCase(); return f.akind.keys.some(k => hay.includes(k)); }
   if (f.cuisine.id === 'all') return true;
   const terms = f.cuisine.id === 'custom' ? f.custom.toLowerCase().split(/[,\s]+/).filter(Boolean) : f.cuisine.keys;
   const hay = (p.keys.join(' ') + ' ' + p.cuisines.join(' ') + ' ' + p.name).toLowerCase();
   return terms.some(k => hay.includes(k));
 }
-async function searchRestaurants(){
+async function searchRestaurants(spoken){
   const near = S.fix || map.center();
   const cuisine = CUISINES.find(c => c.id === cfg.rcuisine) || CUISINES[0];
-  const f = {lat: near.lat, lon: near.lon, radiusKm: +cfg.rdist, minRating: +cfg.rmin, cuisine, custom: $('r-custom').value.trim(), openNow: cfg.ropen};
-  if (cuisine.id === 'custom' && !f.custom) { rStatus('Vul een trefwoord in voor de keuken.'); return; }
+  const akind = AKINDS.find(c => c.id === cfg.akind) || AKINDS[0];
+  const f = {lat: near.lat, lon: near.lon, radiusKm: +cfg.rdist, minRating: +cfg.rmin, cuisine, akind, kind: cfg.pkind, custom: $('r-custom').value.trim(), openNow: cfg.ropen};
+  const what = f.kind === 'a' ? 'bezienswaardigheden' : 'restaurants';
+  if (f.kind !== 'a' && cuisine.id === 'custom' && !f.custom) { rStatus('Vul een trefwoord in voor de keuken.'); return; }
   const src = cfg.rsource === 'auto' ? (cfg.takey ? 'ta' : cfg.gkey ? 'google' : 'osm') : cfg.rsource;
   rStatus('Zoeken via ' + SRC_NAMES[src] + (S.fix ? ' rond je positie...' : ' rond het midden van de kaart...'));
   $('btn-rsearch').disabled = true;
@@ -828,17 +849,23 @@ async function searchRestaurants(){
     list = list.filter(p => p.match || (p.via && src !== 'osm'));
     list.sort((a, b) => (b.match - a.match) || ((b.rating || 0) - (a.rating || 0)) || ((b.reviews || 0) - (a.reviews || 0)) || (a.dist - b.dist));
     S.places = list.slice(0, 12); renderPlaces(); sendPlaces(); map.redraw();
-    rStatus(list.length ? list.length + ' restaurant' + (list.length === 1 ? '' : 's') + ' gevonden via ' + SRC_NAMES[src] + '; de eerste ' + Math.min(8, list.length) + ' staan ook op de bril.' + (src === 'osm' ? ' OpenStreetMap heeft geen beoordelingen, dus het sterrenfilter is niet toegepast.' : '') : 'Geen restaurants gevonden met deze filters.');
-  } catch(e) { rStatus('Zoeken mislukt: ' + (e.message || e)); }
+    rStatus(list.length ? list.length + ' ' + what + ' gevonden via ' + SRC_NAMES[src] + '; de eerste ' + Math.min(8, list.length) + ' staan ook op de bril.' + (src === 'osm' ? ' OpenStreetMap heeft geen beoordelingen, dus het sterrenfilter is niet toegepast.' : '') : 'Geen ' + what + ' gevonden met deze filters.');
+    if (spoken) {
+      if (!list.length) { say('Ik vond geen ' + what + ' met die wensen.', true); toast('Niets gevonden'); }
+      else { const b = list[0]; say(list.length + ' ' + what + ' gevonden. ' + (b.rating ? 'Het best beoordeeld is ' + b.name + ' met ' + String(b.rating).replace('.', ',') + ' sterren, op ' + spokenDistance(b.dist) + '.' : 'Het dichtst bij is ' + b.name + ', op ' + spokenDistance(b.dist) + '.') + ' Kies op de bril.', true); }
+    }
+  } catch(e) { rStatus('Zoeken mislukt: ' + (e.message || e)); if (spoken) { say('Zoeken is mislukt.', true); toast('Zoeken mislukt'); } }
   $('btn-rsearch').disabled = false;
 }
 function rStatus(t){ $('r-status').textContent = t; }
+function toast(text){ sendOrdered({type:'toast', d: clean(text, 70)}); }
+const todayHours = h => { try { const wd = h && h.weekday_text; if (!wd || !wd.length) return ''; const names = ['zo','ma','di','wo','do','vr','za']; const d = new Date().getDay(); const line = wd.find(x => /^\w+/.test(x) && (x.toLowerCase().startsWith(names[d]) || x.toLowerCase().startsWith(['sun','mon','tue','wed','thu','fri','sat'][d]))) || wd[(d + 6) % 7]; return clean(String(line || '').replace(/^[^:]+:\s*/, '').replace(/\s*-\s*/g, '-').replace(/\s*,\s*/g, ', '), 24); } catch(e) { return ''; } };
 function priceWords(p){ const n = (String(p || '').match(/\u20ac/g) || []).length; return ['', 'voordelig', 'gemiddelde prijs', 'duur', 'heel duur'][Math.min(4, n)] || ''; }
 const placeToDest = p => ({name: p.name, sub: [p.cuisines[0], p.addr].filter(Boolean).join(' - '), lat: p.lat, lon: p.lon});
 function sendPlaces(){
   const top = S.places.slice(0, 8);
-  const L = ['F|' + top.length];
-  for (const p of top) L.push(['Q', clean(p.name, 36), p.rating ? Math.round(p.rating*10) : 0, p.reviews || 0, clean([p.cuisines.slice(0, 2).join(', '), priceWords(p.price)].filter(Boolean).join(' - '), 36), Math.min(65535, p.dist), p.open, clean(p.addr, 44)].join('|'));
+  const L = ['F|' + top.length + '|' + cfg.pkind];
+  for (const p of top) L.push(['Q', clean(p.name, 36), p.rating ? Math.round(p.rating*10) : 0, p.reviews || 0, clean([p.cuisines.slice(0, 2).join(', '), priceWords(p.price)].filter(Boolean).join(' - '), 36), Math.min(65535, p.dist), p.open, clean(p.addr, 44), clean(p.rank || '', 38), clean(p.hours || '', 22), clean(p.desc || '', 105)].join('|'));
   S.placesMsg = top.length ? {type:'places', d: L.join('\n')} : null;
   if (S.placesMsg) sendOrdered(S.placesMsg);
 }
@@ -848,7 +875,7 @@ function renderPlaces(){
   S.places.forEach((p, i) => {
     const div = document.createElement('div'); div.className = 'place';
     const meta = [p.rating ? '<span class="stars">' + stars(p.rating) + '</span> ' + p.rating.toFixed(1).replace('.', ',') + (p.reviews ? ' (' + p.reviews + ')' : '') : 'geen beoordeling', esc(p.cuisines.slice(0, 2).join(', ')), esc(p.price), fmtDist(p.dist), p.open === 1 ? '<span style="color:var(--ok)">nu open</span>' : p.open === 2 ? '<span style="color:var(--bad)">gesloten</span>' : ''].filter(Boolean).join(' &middot; ');
-    div.innerHTML = '<b>' + (i+1) + '. ' + esc(p.name) + '</b><div class="meta">' + meta + (p.addr ? '<br>' + esc(p.addr) : '') + '</div><div class="row"><button class="primary">Hiernaartoe (' + MODE_NAMES[cfg.mode] + ')</button>' + (p.url ? '<a class="small-dim" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.source) + ' ↗</a>' : '') + '</div>';
+    div.innerHTML = '<b>' + (i+1) + '. ' + esc(p.name) + '</b><div class="meta">' + meta + (p.rank ? '<br>' + esc(p.rank) : '') + (p.addr ? '<br>' + esc(p.addr) + (p.hours ? ' &middot; vandaag ' + esc(p.hours) : '') : '') + (p.desc ? '<br><span style="color:var(--text)">' + esc(clean(p.desc, 160)) + '</span>' : '') + '</div><div class="row"><button class="primary">Hiernaartoe (' + MODE_NAMES[cfg.mode] + ')</button>' + (p.url ? '<a class="small-dim" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.source) + ' ↗</a>' : '') + '</div>';
     div.querySelector('button').onclick = () => { setDest(placeToDest(p)); startNavigation(S.dest, {}); window.scrollTo({top: 0, behavior: 'smooth'}); };
     box.appendChild(div);
   });
@@ -1007,6 +1034,56 @@ function setMode(m){
   if (S.nav && !S.nav.arrived) startNavigation(S.nav.dest, {reroute: true});
 }
 
+// ---------- voice commands ----------
+const CUISINE_WORDS = [['asian', /\b(aziat|oosters|chinees|chinese|japans|sushi|thais|vietnam|korea|indisch|india|wok|noedel)/], ['italian', /\b(italiaan|pizza|pasta)/], ['french', /\bfrans/], ['belgian', /\b(belgisch|vlaams|friet|frituur)/], ['medit', /\b(grieks|spaans|tapas|mediterra|portug)/], ['mideast', /\b(turks|libanees|marokkaans|kebab|falafel|pita)/], ['latin', /\b(mexicaans|zuid-amerikaans|taco|burrito|braziliaans|argentijns)/], ['grill', /\b(steak|grill|barbecue|burger|amerikaans|hamburger)/], ['fish', /\b(vis|zeevrucht|mossel|oester)/], ['veg', /\b(vegetar|vegan|veggie)/]];
+const AKIND_WORDS = [['museum', /\b(museum|musea|galerij|kunst)/], ['monument', /\b(monument|kerk|kathedraal|kasteel|histor|gebouw|belfort|abdij|begijnhof|toren)/], ['nature', /\b(park|natuur|tuin|bos|strand|dierentuin|zoo)/], ['fun', /\b(pretpark|bioscoop|theater|brouwerij|rondvaart|markt|shoppen|winkel|wellness)/]];
+async function handleCommand(raw){
+  const text = raw.toLowerCase().replace(/[.,!?;:"]/g, ' ').replace(/\s+/g, ' ').trim();
+  $('q').value = raw; setStatus('', 'Gehoord: ' + raw);
+  if (!text) { toast('Niets verstaan'); return; }
+  if (/\b(stop|stoppen|annuleer|annuleren|be[eë]indig)\b/.test(text) && S.nav) { stopNavigation(); say('Navigatie gestopt.', true); toast('Navigatie gestopt'); return; }
+  if (/\bherbereken|nieuwe route\b/.test(text) && S.nav) { startNavigation(S.nav.dest, {reroute: true}); return; }
+  const modeMatch = /\b(wandel|wandelen|loop|lopen|stap|te voet)\b/.test(text) ? 'w' : /\b(fiets|fietsen|fietsend)\b/.test(text) ? 'b' : /\b(rij|rijd|rijden|auto|wagen)\b/.test(text) ? 'c' : null;
+  if (modeMatch && modeMatch !== cfg.mode) { cfg.mode = modeMatch; saveCfg(); document.querySelectorAll('#mode-seg button').forEach(b => b.classList.toggle('on', b.dataset.m === cfg.mode)); }
+  const wantsPlaces = /\b(zoek|vind|is er|zijn er|waar kan ik|toon|welke)\b/.test(text) || /\b(in de buurt|dichtbij|hier)\b/.test(text);
+  const restaurantWords = /\b(restaurant|restaurants|eten|lunch|lunchen|dineren|diner|ontbijt|brasserie|pizzeria|frituur|caf[eé]|bar|snack)\b/;
+  const attractionWords = /\b(bezienswaardig\w*|attractie\w*|museum|musea|te zien|te bezoeken|monument\w*|kerk|kasteel|park|uitstap|toerist\w*)\b/;
+  const destMatch = /\b(?:naar|richting)\s+(.+)$/.exec(text);
+  if ((restaurantWords.test(text) || attractionWords.test(text)) && (wantsPlaces || !destMatch)) {
+    cfg.pkind = attractionWords.test(text) && !restaurantWords.test(text) ? 'a' : 'r';
+    const cw = CUISINE_WORDS.find(([, re]) => re.test(text)); const ak = AKIND_WORDS.find(([, re]) => re.test(text));
+    cfg.rcuisine = cw ? cw[0] : 'all'; cfg.akind = ak ? ak[0] : 'all';
+    const stars = /(\d(?:[,.]5)?)\s*(?:sterren|ster)/.exec(text); cfg.rmin = stars ? String(Math.min(5, parseFloat(stars[1].replace(',', '.')))) : '0';
+    if (/\b(goed|goede|beste|lekker|top)\b/.test(text) && !stars) cfg.rmin = '4';
+    const dist = /(\d+(?:[,.]\d+)?)\s*(km|kilometer|meter|m)\b/.exec(text);
+    cfg.rdist = dist ? String(Math.max(0.5, Math.min(20, parseFloat(dist[1].replace(',', '.')) / (/^k/.test(dist[2]) ? 1 : 1000)))) : (cfg.pkind === 'a' ? '5' : '2');
+    cfg.ropen = /\bopen\b/.test(text);
+    saveCfg(); syncSearchUi();
+    toast('Zoeken: ' + (cfg.pkind === 'a' ? 'bezienswaardigheden' : 'restaurants') + ' binnen ' + cfg.rdist + ' km');
+    startGps(); await searchRestaurants(true); return;
+  }
+  const rawClean = raw.replace(/[.,!?;:"]/g, ' ').replace(/\s+/g, ' ').trim();
+  const rawDest = /\b(?:naar|richting)\s+(.+)$/i.exec(rawClean);
+  let q = rawDest ? rawDest[1] : rawClean.replace(/^(breng me|navigeer|navigeren|ga|wandel|loop|fiets|rij|rijd|rijden|route|naar)\s+/ig, '').trim();
+  q = q.replace(/\b(alsjeblieft|alstublieft|aub|graag|te voet|met de fiets|met de auto|met de wagen)\b/ig, '').replace(/\s+/g, ' ').trim();
+  if (!q) { say('Ik heb je niet begrepen. Zeg bijvoorbeeld: wandel naar het station.', true); toast('Niet begrepen: ' + raw); return; }
+  toast('Zoeken: ' + q);
+  try {
+    const list = await geocode(q);
+    if (!list.length) { say('Ik vond geen plaats met de naam ' + q + '.', true); toast('Niet gevonden: ' + q); return; }
+    setDest(list[0]); map.setCenter(list[0].lat, list[0].lon, 15);
+    say('Route naar ' + list[0].name + ' ' + MODE_NAMES[cfg.mode] + '.', true);
+    startNavigation(list[0], {});
+  } catch(e) { say('Zoeken is mislukt.', true); toast('Zoeken mislukt'); }
+}
+function syncSearchUi(){
+  document.querySelectorAll('#kind-seg button').forEach(b => b.classList.toggle('on', b.dataset.k === cfg.pkind));
+  $('r-cuisine-label').hidden = cfg.pkind === 'a'; $('r-akind-label').hidden = cfg.pkind !== 'a';
+  $('r-cuisine').value = cfg.rcuisine; $('r-akind').value = cfg.akind; $('r-min').value = cfg.rmin; $('r-dist').value = String(cfg.rdist); $('r-open').checked = !!cfg.ropen;
+  $('r-custom-row').hidden = cfg.pkind === 'a' || cfg.rcuisine !== 'custom';
+  $('btn-rsearch').textContent = cfg.pkind === 'a' ? 'Zoek bezienswaardigheden' : 'Zoek restaurants';
+}
+
 // ---------- bindings ----------
 function bind(){
   document.querySelectorAll('#mode-seg button').forEach(b => b.onclick = () => setMode(b.dataset.m));
@@ -1029,12 +1106,15 @@ function bind(){
   $('btn-zout').onclick = () => map.zoom(-1);
   $('btn-pick').onclick = () => { S.pick = !S.pick; $('btn-pick').textContent = S.pick ? 'Annuleer kiezen' : 'Kies op kaart'; map.redraw(); };
   const sel = $('r-cuisine'); for (const c of CUISINES) { const o = document.createElement('option'); o.value = c.id; o.textContent = c.label; sel.appendChild(o); }
-  sel.value = cfg.rcuisine; $('r-custom-row').hidden = cfg.rcuisine !== 'custom';
-  sel.onchange = () => { cfg.rcuisine = sel.value; $('r-custom-row').hidden = sel.value !== 'custom'; saveCfg(); };
+  const asel = $('r-akind'); for (const c of AKINDS) { const o = document.createElement('option'); o.value = c.id; o.textContent = c.label; asel.appendChild(o); }
+  sel.onchange = () => { cfg.rcuisine = sel.value; saveCfg(); syncSearchUi(); };
+  asel.onchange = () => { cfg.akind = asel.value; saveCfg(); };
+  document.querySelectorAll('#kind-seg button').forEach(b => b.onclick = () => { cfg.pkind = b.dataset.k; saveCfg(); syncSearchUi(); });
+  syncSearchUi();
   $('r-source').value = cfg.rsource; $('r-source').onchange = () => { cfg.rsource = $('r-source').value; saveCfg(); };
-  $('r-min').value = cfg.rmin; $('r-min').onchange = () => { cfg.rmin = $('r-min').value; saveCfg(); };
-  $('r-dist').value = cfg.rdist; $('r-dist').onchange = () => { cfg.rdist = $('r-dist').value; saveCfg(); };
-  $('r-open').checked = cfg.ropen; $('r-open').onchange = () => { cfg.ropen = $('r-open').checked; saveCfg(); };
+  $('r-min').onchange = () => { cfg.rmin = $('r-min').value; saveCfg(); };
+  $('r-dist').onchange = () => { cfg.rdist = $('r-dist').value; saveCfg(); };
+  $('r-open').onchange = () => { cfg.ropen = $('r-open').checked; saveCfg(); };
   $('btn-rsearch').onclick = () => { startGps(); searchRestaurants(); };
   $('s-voice').checked = cfg.voice; $('s-voice').onchange = () => { cfg.voice = $('s-voice').checked; saveCfg(); };
   $('btn-voice-test').onclick = () => { cfg.voice = true; $('s-voice').checked = true; saveCfg(); loadVoices(); say('Over 100 meter, sla linksaf naar de Kerkstraat.', true); };
@@ -1059,11 +1139,12 @@ if (MC && MC.onFromApp) {
     else if (m.type === 'go') { const p = S.places[m.i | 0]; S.placesMsg = null; if (p) { setDest(placeToDest(p)); startNavigation(S.dest, {}); } }
     else if (m.type === 'close') { S.placesMsg = null; }
     else if (m.type === 'done') { stopNavigation(); }
+    else if (m.type === 'say') { handleCommand(String(m.text || '')); }
   });
   if (typeof off === 'function') window.addEventListener('pagehide', off);
 }
 // Test hooks: drive fixes and read state without a real phone.
-window.__wegwijs = {S, cfg, acceptFix, startNavigation, stopNavigation, publishNav, searchRestaurants, buildNav, setDest, map};
+window.__wegwijs = {S, cfg, acceptFix, startNavigation, stopNavigation, publishNav, searchRestaurants, buildNav, setDest, map, handleCommand};
 
 // ---------- start ----------
 (async function start(){

@@ -13,11 +13,16 @@ app_icon!(content::app_icon::Icon::new()
     .line(16,3,27,27).line(27,27,16,21).line(16,21,5,27).line(5,27,16,3).0);
 
 #[link(wasm_import_module = "mira")]
-extern "C" { fn device_status(out: *mut u8, capacity: i32) -> i32; }
+extern "C" {
+    fn device_status(out: *mut u8, capacity: i32) -> i32;
+    fn ble_request(method: i32, payload: *const u8, len: i32) -> i32;
+    fn ble_response_len(id: i32) -> i32;
+    fn ble_response_read(id: i32, out: *mut u8, cap: i32) -> i32;
+}
 #[panic_handler] fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
 
 const APP: &[u8] = b"Wegwijs";
-static mut BRIDGE: companion::Companion<4096, 96> = companion::Companion::new(APP);
+static mut BRIDGE: companion::Companion<4096, 512> = companion::Companion::new(APP);
 
 // ---- Message intake ---------------------------------------------------------
 const STATE_CAP: usize = 3600;
@@ -80,12 +85,31 @@ static mut ROTATE: bool = true; // heading-up map when following
 // ---- Restaurant chooser --------------------------------------------------------
 const MAX_PLACES: usize = 8;
 #[derive(Clone, Copy)]
-struct Place { r10: u8, open: u8, nlen: u8, ilen: u8, alen: u8, reviews: u16, dist: u16, name: [u8; 40], info: [u8; 40], addr: [u8; 48] }
-const NO_PLACE: Place = Place { r10: 0, open: 0, nlen: 0, ilen: 0, alen: 0, reviews: 0, dist: 0, name: [0; 40], info: [0; 40], addr: [0; 48] };
+struct Place { r10: u8, open: u8, nlen: u8, ilen: u8, alen: u8, klen: u8, hlen: u8, dlen: u8, reviews: u16, dist: u16,
+    name: [u8; 40], info: [u8; 40], addr: [u8; 48], rank: [u8; 40], hours: [u8; 24], desc: [u8; 110] }
+const NO_PLACE: Place = Place { r10: 0, open: 0, nlen: 0, ilen: 0, alen: 0, klen: 0, hlen: 0, dlen: 0, reviews: 0, dist: 0,
+    name: [0; 40], info: [0; 40], addr: [0; 48], rank: [0; 40], hours: [0; 24], desc: [0; 110] };
 static mut PLACES: [Place; MAX_PLACES] = [NO_PLACE; MAX_PLACES];
 static mut NPLACES: usize = 0;
 static mut PLACE_SEL: usize = 0;
 static mut CHOOSER: bool = false;
+static mut DETAIL: bool = false; // chooser shows the detail card instead of the list
+static mut PLACES_KIND: u8 = b'r'; // r restaurants, a attractions
+
+// ---- Hold-to-talk through the SDK transcription service ------------------------
+static mut LISTEN: u8 = 0; // 0 off, 1 listening, 2 released and waiting for the final text
+static mut HELD: bool = false;
+static mut LISTEN_MS: u32 = 0;
+static mut LISTEN_POLL: u32 = 0;
+static mut FINISH_MS: u32 = 0;
+static mut LISTEN_REQ: i32 = 0;
+static mut LISTEN_CTL: i32 = 0;
+static mut HEARD: [u8; 300] = [0; 300];
+static mut HEARD_LEN: usize = 0;
+static mut HEARD_FINAL: bool = false;
+static mut TOAST: [u8; 96] = [0; 96];
+static mut TOAST_LEN: u8 = 0;
+static mut TOAST_MS: u32 = 0;
 
 // ---- UI state ---------------------------------------------------------------
 static mut PAGE: u8 = 0; // 0 navigation, 1 steps
@@ -97,7 +121,7 @@ static mut OV_S256: i32 = 64;
 static mut STEPS_TOP: usize = 0;
 static mut DIRTY: bool = true;
 static mut ANIM_MS: u32 = 0;
-static mut OUT: [u8; 64] = [0; 64];
+static mut OUT: [u8; 400] = [0; 400];
 static mut OUT_LEN: usize = 0;
 static mut STATUS: [u8; 10] = [0; 10];
 static mut STATUS_MS: u32 = 1000;
@@ -571,14 +595,15 @@ unsafe fn idle_page() {
         1 => b"Route wordt berekend...",
         5 => b"Wachten op gps-signaal...",
         6 => if STATUS_LEN > 0 { &STATUS_TXT[..STATUS_LEN as usize] } else { b"Route mislukt" },
-        _ => b"Kies een bestemming in de telefoon-app",
+        _ => b"Houd de touchbar ingedrukt en zeg waar je naartoe wilt",
     };
-    wrap(60, 250, 520, 24, 11, 1, 30, 2, msg);
+    wrap(40, 250, 560, 24, 11, 1, 30, 2, msg);
     if NSTATE == 1 && DEST_LEN > 0 {
         let mut b = Buffer::new(); b.add(b"naar "); b.add(&DEST[..DEST_LEN as usize]);
         t(60, 312, 520, 24, 13, 1, b.bytes());
     } else if NSTATE == 0 {
-        t(60, 312, 520, 18, 8, 1, b"of zoek een restaurant in de buurt");
+        t(60, 316, 520, 18, 8, 1, b"bv. \"wandel naar het station\" of \"zoek een restaurant\"");
+        t(60, 342, 520, 18, 7, 1, b"of kies een bestemming in de telefoon-app");
     }
     let mut c = Buffer::new(); clock(&mut c);
     t(28, 446, 120, 18, 10, 0, c.bytes());
@@ -594,53 +619,120 @@ unsafe fn arrived_page() {
     if DEST_LEN > 0 { wrap(60, 356, 520, 24, 11, 1, 28, 2, &DEST[..DEST_LEN as usize]); }
     t(120, 436, 400, 18, 7, 1, b"tik om af te sluiten");
 }
-unsafe fn chooser_page() {
+unsafe fn rating_dots(x: i32, y: i32, r10: u8, r: i32) {
+    for i in 0..5u8 {
+        let cx = x + i as i32 * (r * 3);
+        if r10 >= i * 10 + 8 { fill_circle(cx, y, r, 15); }
+        else if r10 >= i * 10 + 3 { stroke_circle(cx, y, r, 2, 15); fill_circle(cx, y, r / 2, 15); }
+        else { stroke_circle(cx, y, r, 1, 6); }
+    }
+}
+fn rating_text(b: &mut Buffer, r10: u8) { b.num((r10 / 10) as usize); b.add(b","); b.num((r10 % 10) as usize); }
+unsafe fn chooser_title() -> &'static [u8] {
+    if PLACES_KIND == b'a' { b"Bezienswaardigheden in de buurt" } else { b"Restaurants in de buurt" }
+}
+unsafe fn chooser_list() {
     let n = NPLACES;
-    t(28, 16, 400, 24, 10, 0, b"Restaurants in de buurt");
-    let mut c = Buffer::new();
-    if PLACE_SEL < n { c.num(PLACE_SEL + 1); c.add(b" van "); c.num(n); }
-    t(420, 20, 192, 18, 8, 2, c.bytes());
-    stroke_round_rect(28, 54, 584, 352, 18, 1, 6);
-    // Edge chevrons as swipe hints.
-    if n > 0 {
-        fill_triangle(14, 230, 22, 220, 22, 240, 6);
-        fill_triangle(626, 230, 618, 220, 618, 240, 6);
-    }
-    if PLACE_SEL >= n {
-        t(60, 150, 520, 32, 15, 1, b"Geen keuze");
-        t(60, 206, 520, 24, 10, 1, b"Swipe terug voor de voorstellen");
-        t(60, 240, 520, 18, 8, 1, b"of tik om te sluiten");
-        return;
-    }
-    let p = &PLACES[PLACE_SEL];
-    wrap(50, 68, 540, 32, 15, 0, 38, 2, &p.name[..p.nlen as usize]);
-    // Rating as five dots plus the figure.
-    let y = 158;
-    if p.r10 > 0 {
-        for i in 0..5u8 {
-            let x = 58 + i as i32 * 24;
-            if p.r10 >= i * 10 + 8 { fill_circle(x, y, 8, 15); }
-            else if p.r10 >= i * 10 + 3 { stroke_circle(x, y, 8, 2, 15); fill_circle(x, y, 4, 15); }
-            else { stroke_circle(x, y, 8, 1, 6); }
+    t(28, 16, 440, 24, 10, 0, chooser_title());
+    t(470, 20, 142, 18, 8, 2, b"swipe en tik");
+    let rows = n + 1; // last row closes the chooser
+    let first = if PLACE_SEL >= 6 { PLACE_SEL - 5 } else { 0 };
+    let mut y = 52;
+    for i in first..rows.min(first + 6) {
+        let sel = i == PLACE_SEL;
+        if sel { stroke_round_rect(24, y, 592, 56, 12, 1, 9); }
+        if i == n {
+            t(48, y + 16, 540, 24, if sel { 13 } else { 7 }, 0, b"Sluiten zonder keuze");
+        } else {
+            let p = &PLACES[i];
+            let ink = if sel { 15 } else { 11 };
+            let mut num = Buffer::new(); num.num(i + 1); num.add(b".");
+            t(36, y + 4, 30, 24, if sel { 12 } else { 7 }, 0, num.bytes());
+            t(66, y + 4, 420, 24, ink, 0, &p.name[..p.nlen as usize]);
+            if p.r10 > 0 {
+                rating_dots(506, y + 16, p.r10, 5);
+                let mut r = Buffer::new(); rating_text(&mut r, p.r10);
+                t(566, y + 4, 44, 24, ink, 2, r.bytes());
+            } else {
+                t(500, y + 8, 110, 18, 7, 2, b"geen score");
+            }
+            let mut sub = Buffer::new();
+            if p.ilen > 0 { sub.add(&p.info[..p.ilen as usize]); sub.add(b"  -  "); }
+            fmt_dist(&mut sub, p.dist as i32);
+            match p.open { 1 => sub.add(b"  -  nu open"), 2 => sub.add(b"  -  gesloten"), _ => {} }
+            t(66, y + 32, 544, 18, if sel { 10 } else { 7 }, 0, sub.bytes());
         }
-        let mut r = Buffer::new(); r.num((p.r10 / 10) as usize); r.add(b","); r.num((p.r10 % 10) as usize);
-        t(184, y - 20, 80, 32, 15, 0, r.bytes());
+        y += 60;
+    }
+    if rows > 6 {
+        let mut b = Buffer::new(); b.num(first + 1); b.add(b"-"); b.num(rows.min(first + 6)); b.add(b" van "); b.num(rows);
+        t(28, 440, 584, 18, 7, 2, b.bytes());
+    }
+    t(28, 440, 400, 18, 6, 0, b"tik voor details, lang indrukken sluit");
+}
+unsafe fn chooser_detail() {
+    let n = NPLACES;
+    t(28, 16, 400, 24, 10, 0, chooser_title());
+    let mut c = Buffer::new(); c.num(PLACE_SEL + 1); c.add(b" van "); c.num(n);
+    t(420, 20, 192, 18, 8, 2, c.bytes());
+    stroke_round_rect(28, 50, 584, 364, 18, 1, 6);
+    fill_triangle(14, 230, 22, 220, 22, 240, 6);
+    fill_triangle(626, 230, 618, 220, 618, 240, 6);
+    let p = &PLACES[PLACE_SEL];
+    let name_lines = if bwidth(&p.name[..p.nlen as usize], 32) > 540 { 2 } else { 1 };
+    wrap(50, 62, 540, 32, 15, 0, 38, 2, &p.name[..p.nlen as usize]);
+    let mut y = 62 + name_lines * 38 + 10;
+    if p.r10 > 0 {
+        rating_dots(60, y + 12, p.r10, 8);
+        let mut r = Buffer::new(); rating_text(&mut r, p.r10);
+        t(184, y - 6, 70, 32, 15, 0, r.bytes());
         if p.reviews > 0 {
             let mut v = Buffer::new(); v.num(p.reviews as usize); v.add(b" beoordelingen");
-            t(250, y - 10, 340, 18, 8, 0, v.bytes());
+            t(250, y + 2, 340, 18, 8, 0, v.bytes());
         }
     } else {
-        t(50, y - 14, 540, 24, 8, 0, b"Beoordeling onbekend");
+        t(50, y, 540, 24, 8, 0, b"Beoordeling onbekend");
     }
-    if p.ilen > 0 { t(50, 196, 540, 24, 12, 0, &p.info[..p.ilen as usize]); }
+    y += 36;
+    if p.klen > 0 { t(50, y, 540, 18, 9, 0, &p.rank[..p.klen as usize]); y += 26; }
+    if p.ilen > 0 { t(50, y, 540, 24, 12, 0, &p.info[..p.ilen as usize]); y += 32; }
     let mut d = Buffer::new(); fmt_dist(&mut d, p.dist as i32); d.add(b" hemelsbreed");
-    t(50, 234, 300, 24, 10, 0, d.bytes());
-    match p.open { 1 => t(350, 234, 240, 24, 15, 2, b"nu open"), 2 => t(350, 234, 240, 24, 9, 2, b"gesloten"), _ => {} }
-    if p.alen > 0 { wrap(50, 272, 540, 18, 8, 0, 24, 2, &p.addr[..p.alen as usize]); }
+    t(50, y, 300, 24, 10, 0, d.bytes());
+    match p.open { 1 => t(350, y, 240, 24, 15, 2, b"nu open"), 2 => t(350, y, 240, 24, 9, 2, b"gesloten"), _ => {} }
+    y += 32;
+    if p.alen > 0 { t(50, y, 330, 18, 8, 0, &p.addr[..p.alen as usize]); }
+    if p.hlen > 0 { t(380, y, 210, 18, 8, 2, &p.hours[..p.hlen as usize]); }
+    y += 26;
+    if p.dlen > 0 && y + 44 <= 376 { wrap(50, y, 540, 18, 10, 0, 22, if y + 66 <= 376 { 3 } else { 2 }, &p.desc[..p.dlen as usize]); }
     let mut h = Buffer::new(); h.add(b"tik om hiernaartoe te gaan ("); h.add(mode_name(MODE)); h.add(b")");
-    t(50, 372, 540, 18, 9, 1, h.bytes());
-    t(28, 440, 584, 18, 6, 1, b"swipe voor het volgende voorstel");
+    t(50, 384, 540, 18, 9, 1, h.bytes());
+    t(28, 440, 584, 18, 6, 1, b"swipe voor het volgende, lang indrukken voor de lijst");
 }
+unsafe fn chooser_page() { if DETAIL && PLACE_SEL < NPLACES { chooser_detail(); } else { chooser_list(); } }
+
+// ---- Voice overlay and toasts ----------------------------------------------------
+unsafe fn listen_overlay() {
+    fill_round_rect(110, 140, 420, 190, 18, 0);
+    stroke_round_rect(110, 140, 420, 190, 18, 2, 12);
+    // Microphone glyph.
+    fill_round_rect(141, 164, 18, 32, 9, 15);
+    stroke_round_rect(133, 176, 34, 30, 15, 2, 11);
+    line(150, 206, 150, 216, 2, 11); line(140, 216, 160, 216, 2, 11);
+    let title: &[u8] = if LISTEN == 1 { b"Ik luister..." } else { b"Even geduld..." };
+    t(184, 160, 320, 24, 15, 0, title);
+    if HEARD_LEN > 0 { wrap(184, 196, 326, 24, 12, 0, 30, 3, &HEARD[..HEARD_LEN]); }
+    else { wrap(184, 196, 326, 18, 8, 0, 24, 2, b"Zeg bv. \"wandel naar het station\" of \"zoek een restaurant\""); }
+    t(130, 300, 380, 18, 7, 1, if HELD { b"laat los als je klaar bent" } else { b"tik om te stoppen" });
+}
+unsafe fn toast_overlay() {
+    if TOAST_MS == 0 || TOAST_LEN == 0 { return; }
+    let w = (bwidth(&TOAST[..TOAST_LEN as usize], 18) + 40).clamp(160, 560);
+    let x = 320 - w / 2;
+    fill_round_rect(x, 380, w, 42, 12, 0);
+    stroke_round_rect(x, 380, w, 42, 12, 1, 9);
+    t(x + 20, 390, w - 40, 18, 14, 1, &TOAST[..TOAST_LEN as usize]);
+}
+unsafe fn toast(msg: &[u8]) { TOAST_LEN = copy_into(&mut TOAST, msg); TOAST_MS = 5000; DIRTY = true; }
 
 unsafe fn render() {
     begin();
@@ -650,6 +742,7 @@ unsafe fn render() {
     else if NPTS < 2 || NSTATE == 6 { idle_page(); }
     else if PAGE == 1 { steps_page(); }
     else { nav_page(); }
+    if LISTEN != 0 { listen_overlay(); } else { toast_overlay(); }
     content::cursor(612, 458, false);
     present();
 }
@@ -808,10 +901,12 @@ unsafe fn apply_streets() {
     SSTART[NSLINES] = NSPTS as u16;
 }
 unsafe fn apply_places() {
-    NPLACES = 0;
+    NPLACES = 0; PLACES_KIND = b'r';
     for i in 0..NLINES {
         let l = ln(i);
-        if l.len() < 2 || l[0] != b'Q' || l[1] != b'|' || NPLACES >= MAX_PLACES { continue; }
+        if l.len() < 2 || l[1] != b'|' { continue; }
+        if l[0] == b'F' { PLACES_KIND = field(&l[2..], 1).first().copied().unwrap_or(b'r'); continue; }
+        if l[0] != b'Q' || NPLACES >= MAX_PLACES { continue; }
         let f = &l[2..];
         let p = &mut PLACES[NPLACES];
         p.nlen = copy_into(&mut p.name, field(f, 0));
@@ -821,9 +916,13 @@ unsafe fn apply_places() {
         p.dist = num(field(f, 4)).clamp(0, 65535) as u16;
         p.open = num(field(f, 5)).clamp(0, 2) as u8;
         p.alen = copy_into(&mut p.addr, field(f, 6));
+        p.klen = copy_into(&mut p.rank, field(f, 7));
+        p.hlen = copy_into(&mut p.hours, field(f, 8));
+        p.dlen = copy_into(&mut p.desc, field(f, 9));
         NPLACES += 1;
     }
     CHOOSER = NPLACES > 0;
+    DETAIL = false;
     PLACE_SEL = 0;
 }
 unsafe fn clear_all() {
@@ -842,14 +941,15 @@ unsafe fn poll_local(ms: u32) {
 
 // ---- Input ------------------------------------------------------------------
 unsafe fn tap() {
+    if LISTEN == 1 { finish_listen(); return; }
     if CHOOSER {
-        if PLACE_SEL < NPLACES {
+        if PLACE_SEL >= NPLACES { queue(b"{\"type\":\"close\"}"); CHOOSER = false; }
+        else if !DETAIL { DETAIL = true; }
+        else {
             let mut b = Buffer::new(); b.add(b"{\"type\":\"go\",\"i\":"); b.num(PLACE_SEL); b.add(b"}");
             queue(b.bytes());
-        } else {
-            queue(b"{\"type\":\"close\"}");
+            CHOOSER = false; DETAIL = false;
         }
-        CHOOSER = false;
         return;
     }
     if NSTATE == 3 { queue(b"{\"type\":\"done\"}"); return; }
@@ -865,7 +965,7 @@ unsafe fn tap() {
 }
 unsafe fn swipe(next: bool) {
     if CHOOSER {
-        let n = NPLACES + 1;
+        let n = if DETAIL { NPLACES } else { NPLACES + 1 };
         PLACE_SEL = if next { (PLACE_SEL + 1) % n } else { (PLACE_SEL + n - 1) % n };
         return;
     }
@@ -873,10 +973,87 @@ unsafe fn swipe(next: bool) {
     PAGE ^= 1; STEPS_TOP = 0;
 }
 
+unsafe fn long_click() {
+    if CHOOSER {
+        if DETAIL { DETAIL = false; } else { queue(b"{\"type\":\"close\"}"); CHOOSER = false; }
+        return;
+    }
+    HELD = false;
+    if LISTEN == 1 { finish_listen(); } else if LISTEN == 0 { start_listen(); }
+}
+unsafe fn start_listen() {
+    if LISTEN != 0 || content::sidebar_open() || content::overlay_visible() { return; }
+    LISTEN = 1; LISTEN_MS = 0; LISTEN_POLL = 200; HEARD_LEN = 0; HEARD_FINAL = false; TOAST_MS = 0;
+    let dummy = [0u8; 1];
+    LISTEN_CTL = ble_request(0x0001, dummy.as_ptr(), 0);
+    DIRTY = true;
+}
+unsafe fn finish_listen() {
+    if LISTEN != 1 { return; }
+    LISTEN = 2; FINISH_MS = 0;
+    let dummy = [0u8; 1];
+    LISTEN_CTL = ble_request(0x0002, dummy.as_ptr(), 0);
+    DIRTY = true;
+}
+unsafe fn cancel_listen() {
+    LISTEN = 0; HEARD_LEN = 0;
+    let dummy = [0u8; 1];
+    LISTEN_CTL = ble_request(0x0002, dummy.as_ptr(), 0);
+    DIRTY = true;
+}
+/// Sends the heard sentence to the phone as {"type":"say","text":"..."}.
+unsafe fn send_heard() {
+    LISTEN = 0;
+    if HEARD_LEN == 0 { toast(b"Niets gehoord, probeer opnieuw"); return; }
+    let mut b = Buffer::new();
+    b.add(b"{\"type\":\"say\",\"text\":\"");
+    for &c in &HEARD[..HEARD_LEN] {
+        if b.n >= 240 { break; }
+        match c { b'"' => b.add(b"\\\""), b'\\' => b.add(b"\\\\"), 0..=0x1f => b.add(b" "), _ => b.add(&[c]) }
+    }
+    b.add(b"\"}");
+    queue(b.bytes());
+    toast(b"Even kijken...");
+}
+unsafe fn listen_tick(ms: u32) {
+    if LISTEN == 0 { return; }
+    LISTEN_MS = LISTEN_MS.saturating_add(ms); LISTEN_POLL = LISTEN_POLL.saturating_add(ms);
+    if LISTEN_CTL > 0 {
+        let n = ble_response_len(LISTEN_CTL);
+        if n != -1 { if n >= 0 { let mut b = [0u8; 384]; ble_response_read(LISTEN_CTL, b.as_mut_ptr(), 384); } LISTEN_CTL = 0; }
+    }
+    if LISTEN_REQ > 0 {
+        let n = ble_response_len(LISTEN_REQ);
+        if n >= 0 {
+            let mut b = [0u8; 384];
+            let n = ble_response_read(LISTEN_REQ, b.as_mut_ptr(), 384);
+            LISTEN_REQ = 0;
+            if n > 2 {
+                let text = &b[2..n as usize];
+                let mut end = text.len();
+                while end > 0 && (text[end - 1] == 0 || text[end - 1] == b' ') { end -= 1; }
+                if end > 0 { HEARD_LEN = copy_into(&mut HEARD, &text[..end]) as usize; HEARD_FINAL = b[1] != 0; DIRTY = true; }
+            }
+        } else if n != -1 { LISTEN_REQ = 0; }
+    }
+    if LISTEN_REQ <= 0 && LISTEN_POLL >= 250 {
+        LISTEN_POLL = 0;
+        let dummy = [0u8; 1];
+        LISTEN_REQ = ble_request(0x0003, dummy.as_ptr(), 0);
+    }
+    if LISTEN == 1 && !HELD && (LISTEN_MS >= 8000 || (HEARD_FINAL && LISTEN_MS >= 2500)) { finish_listen(); }
+    if LISTEN == 2 {
+        FINISH_MS = FINISH_MS.saturating_add(ms);
+        if HEARD_FINAL || FINISH_MS >= 1500 { send_heard(); DIRTY = true; }
+    }
+}
+
 // ---- Exports ----------------------------------------------------------------
 #[no_mangle] pub unsafe extern "C" fn app_init() {
     BRIDGE = companion::Companion::new(APP);
+    content::holds_local(true);
     clear_all();
+    LISTEN = 0; HELD = false; TOAST_MS = 0;
     S256 = 512; S256_T = 512; DIRTY = true; STATUS_MS = 1000;
     queue(b"{\"type\":\"sync\"}");
     poll_local(0);
@@ -893,11 +1070,14 @@ unsafe fn swipe(next: bool) {
             b's' => apply_streets(),
             b'p' => apply_places(),
             b'c' => clear_all(),
+            b't' => { let m = if NLINES > 0 { ln(0) } else { &[][..] }; toast(m); }
             _ => {}
         }
         DIRTY = true;
     }
     if OUT_LEN > 0 && BRIDGE.send(&OUT[..OUT_LEN]) { OUT_LEN = 0; }
+    listen_tick(ms);
+    if TOAST_MS > 0 { TOAST_MS = TOAST_MS.saturating_sub(ms); if TOAST_MS == 0 { DIRTY = true; } }
     if OVERVIEW && OVERVIEW_MS > 0 {
         OVERVIEW_MS = OVERVIEW_MS.saturating_sub(ms);
         if OVERVIEW_MS == 0 { OVERVIEW = false; S256 = OV_S256; S256_T = zoom_target(); DIRTY = true; }
@@ -925,6 +1105,9 @@ unsafe fn swipe(next: bool) {
         0 => tap(),
         1 => swipe(false),
         2 => swipe(true),
+        9 => long_click(),
+        10 => { HELD = true; start_listen(); }
+        12 => { HELD = false; if LISTEN == 1 { if LISTEN_MS < 350 { cancel_listen(); } else { finish_listen(); } } }
         _ => return,
     }
     render();

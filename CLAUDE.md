@@ -62,7 +62,15 @@ Lever alleen `Wegwijs.html` op (zelfde installatiestappen als Glance).
   - `streets` (geordend): `L|punten` per straat. `places` (geordend): `F|n`, `Q|naam|sterren×10|aantal|info|afstand|open|adres`.
   - `clear`. Manoeuvre-codes: S rechtdoor, L/R links/rechts, l/r flauw, H/h scherp, U/u keren, K/k aanhouden,
     O rotonde, A bestemming, D vertrek, T trap, F veerboot.
-- Bril → telefoon: `{"type":"sync"}`, `{"type":"go","i":n}` (restaurant gekozen), `{"type":"close"}`, `{"type":"done"}`.
+  - `toast`: één regel tekst, 5 s onderaan op de bril. `places` heeft `F|n|soort` (r restaurants, a bezienswaardigheden) en
+    `Q|…|adres|ranking|uren vandaag|omschrijving`; op de bril eerst een lijst (swipe = kiezen, tik = detailkaart,
+    tik = navigeer, lang indrukken = terug/sluiten).
+- Bril → telefoon: `{"type":"sync"}`, `{"type":"go","i":n}` (plaats gekozen), `{"type":"close"}`, `{"type":"done"}`,
+  `{"type":"say","text":"…"}` (ingesproken zin).
+- Spraak op de bril: de app claimt holds (`content::holds_local`). Touchbar ingedrukt houden start de SDK-transcriptie
+  (`ble_request` 0x0001, snapshot 0x0003 elke 250 ms, stop 0x0002), loslaten stuurt de zin naar de telefoon.
+  `handleCommand` in de companion herkent reismodus ("wandel/fiets/rij"), "naar <plaats>", "zoek … restaurant/
+  bezienswaardigheden" met keuken, sterren, afstand en "open", en "stop"/"herbereken". Antwoorden komen als `toast` en spraak.
 
 ## Testen zonder bril
 ```sh
